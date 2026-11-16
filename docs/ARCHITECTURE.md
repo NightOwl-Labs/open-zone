@@ -19,6 +19,8 @@ Status: draft, 2026-11-15.
 | R7  | After a power loss the service recovers on its own. Background polling happens **only if a mirror is enabled**. Otherwise state is synced only while a user is interacting.                                                                    | user   |
 | R8  | Phone-first browser UI that can later be packaged as an iOS or Android app.                                                                                                                                                                    | user   |
 | R9  | Config, including zone and source naming and mirror groups, is done from the UI. Storage stays lightweight.                                                                                                                                    | user   |
+| R9a | The amp cannot report which source inputs are connected, so sources can be disabled. Disabled sources are hidden from zone pickers and rejected by the API, though keypads and mirrors may still select them.                                  | user   |
+| R9b | A zone following an active mirror shows no controls of its own, only what it follows. Each follower has a volume offset that can be set in the mirror editor (±38) or learned from a direct volume change.                                     | user   |
 | R10 | Other multi-zone amp models can be added later. Integrations (MQTT, Home Assistant) and auth can be added later **without changing core decisions**.                                                                                           | user   |
 | R11 | Local network only, no auth in v1. No user roles, ever.                                                                                                                                                                                        | user   |
 
@@ -249,23 +251,23 @@ The cache is **not** persisted, because the amp is the source of truth. Only con
 
 All JSON. Schemas come from the shared zod package and are published as OpenAPI at `/api/v1/docs`.
 
-| Method         | Path                       | Purpose                                                         |
-| -------------- | -------------------------- | --------------------------------------------------------------- |
-| GET            | `/api/v1/system`           | Model descriptor, installed units, connection status, queue RTT |
-| POST           | `/api/v1/system/discover`  | Re-detect stacked units                                         |
-| GET            | `/api/v1/zones`            | All zones: state, name, mirror role                             |
-| GET            | `/api/v1/zones/:id`        | One zone                                                        |
-| PATCH          | `/api/v1/zones/:id`        | Partial update `{ volume?, source?, power?, … }`                |
-| PUT            | `/api/v1/zones/:id/name`   | Rename a zone                                                   |
-| GET            | `/api/v1/sources`          | Shared sources (1–6) and their names                            |
-| PUT            | `/api/v1/sources/:id/name` | Rename a source                                                 |
-| GET / POST     | `/api/v1/mirrors`          | List or create mirror groups                                    |
-| PATCH / DELETE | `/api/v1/mirrors/:id`      | Edit, enable/disable, or delete a group                         |
-| GET / PATCH    | `/api/v1/config`           | Serial port, baud, poll intervals                               |
-| GET            | `/api/v1/serial-ports`     | List candidate ports for the settings UI                        |
-| WS             | `/api/v1/events`           | Sends a snapshot on connect, then events                        |
+| Method         | Path                      | Purpose                                                                                                  |
+| -------------- | ------------------------- | -------------------------------------------------------------------------------------------------------- |
+| GET            | `/api/v1/system`          | Model descriptor, installed units, connection status, queue RTT                                          |
+| POST           | `/api/v1/system/discover` | Re-detect stacked units                                                                                  |
+| GET            | `/api/v1/zones`           | All zones: state, name, mirror role                                                                      |
+| GET            | `/api/v1/zones/:id`       | One zone                                                                                                 |
+| PATCH          | `/api/v1/zones/:id`       | Partial update `{ volume?, source?, power?, … }`                                                         |
+| PUT            | `/api/v1/zones/:id/name`  | Rename a zone                                                                                            |
+| GET            | `/api/v1/sources`         | Shared sources (1–6) with names and enabled flags                                                        |
+| PATCH          | `/api/v1/sources/:id`     | `{ name?, enabled? }`: rename, or hide an unused source from pickers (the API then rejects selecting it) |
+| GET / POST     | `/api/v1/mirrors`         | List or create mirror groups                                                                             |
+| PATCH / DELETE | `/api/v1/mirrors/:id`     | Edit, enable/disable, or delete a group                                                                  |
+| GET / PATCH    | `/api/v1/config`          | Serial port, baud, poll intervals                                                                        |
+| GET            | `/api/v1/serial-ports`    | List candidate ports for the settings UI                                                                 |
+| WS             | `/api/v1/events`          | Sends a snapshot on connect, then events                                                                 |
 
-**WebSocket events:** `snapshot`, `zone.changed` (diff only), `mirror.updated`, `mirror.offsetChanged`, `mirror.childDetached`, `connection.changed`, `command.failed`.
+**WebSocket events:** `snapshot`, `zone.changed` (diff only), `zone.renamed`, `source.updated`, `mirror.updated`, `mirror.offsetChanged`, `mirror.childDetached`, `connection.changed`, `command.failed`.
 Commands go through REST and the WebSocket only pushes. This keeps the API simple to call from curl, scripts and future integrations.
 
 ---
