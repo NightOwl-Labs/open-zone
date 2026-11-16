@@ -8,19 +8,19 @@ Status: draft, 2026-11-15.
 
 ## 1. Requirements
 
-| # | Requirement | Source |
-|---|---|---|
-| R1 | Up to 18 zones (3 stacked 10761 units) over **one** serial port. Slave units are linked to the master. Sources are shared. | user |
-| R2 | Any UI can poll the state of every zone, change a zone's settings, and have the changes pushed to the hardware. | user |
-| R3 | Mirroring: one master zone drives one or more child zones. **All** settings are mirrored. | user |
-| R4 | A child zone must have **no keypad**. This is checked when the mirror is set up. As a backup, an out-of-band change to a child is handled this way: a volume change becomes an offset, and any other change breaks the zone out of the mirror. | user |
-| R5 | A change the API makes to a master is sent to its children right away. The cache is updated so the next poll finds nothing to do. | user |
-| R6 | Mirror poll interval is configurable, starting at 500 ms. Adaptive timing may come later. | user |
-| R7 | After a power loss the service recovers on its own. Background polling happens **only if a mirror is enabled**. Otherwise state is synced only while a user is interacting. | user |
-| R8 | Phone-first browser UI that can later be packaged as an iOS or Android app. | user |
-| R9 | Config, including zone and source naming and mirror groups, is done from the UI. Storage stays lightweight. | user |
-| R10 | Other multi-zone amp models can be added later. Integrations (MQTT, Home Assistant) and auth can be added later **without changing core decisions**. | user |
-| R11 | Local network only, no auth in v1. No user roles, ever. | user |
+| #   | Requirement                                                                                                                                                                                                                                    | Source |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| R1  | Up to 18 zones (3 stacked 10761 units) over **one** serial port. Slave units are linked to the master. Sources are shared.                                                                                                                     | user   |
+| R2  | Any UI can poll the state of every zone, change a zone's settings, and have the changes pushed to the hardware.                                                                                                                                | user   |
+| R3  | Mirroring: one master zone drives one or more child zones. **All** settings are mirrored.                                                                                                                                                      | user   |
+| R4  | A child zone must have **no keypad**. This is checked when the mirror is set up. As a backup, an out-of-band change to a child is handled this way: a volume change becomes an offset, and any other change breaks the zone out of the mirror. | user   |
+| R5  | A change the API makes to a master is sent to its children right away. The cache is updated so the next poll finds nothing to do.                                                                                                              | user   |
+| R6  | Mirror poll interval is configurable, starting at 500 ms. Adaptive timing may come later.                                                                                                                                                      | user   |
+| R7  | After a power loss the service recovers on its own. Background polling happens **only if a mirror is enabled**. Otherwise state is synced only while a user is interacting.                                                                    | user   |
+| R8  | Phone-first browser UI that can later be packaged as an iOS or Android app.                                                                                                                                                                    | user   |
+| R9  | Config, including zone and source naming and mirror groups, is done from the UI. Storage stays lightweight.                                                                                                                                    | user   |
+| R10 | Other multi-zone amp models can be added later. Integrations (MQTT, Home Assistant) and auth can be added later **without changing core decisions**.                                                                                           | user   |
+| R11 | Local network only, no auth in v1. No user roles, ever.                                                                                                                                                                                        | user   |
 
 ---
 
@@ -28,17 +28,17 @@ Status: draft, 2026-11-15.
 
 **Decision: TypeScript on Node.js, from the backend through the UI.**
 
-| | TypeScript / Node | Python / asyncio |
-|---|---|---|
-| Your fluency | High | Would need to learn |
-| Serial I/O | `serialport` is mature, with prebuilt arm64 binaries | `pyserial-asyncio` is mature |
-| Prior art for this amp | None worth reusing | `pymonoprice` (the Home Assistant integration). It is a useful protocol reference, but a small, synchronous library |
-| API framework | Fastify + `@fastify/websocket` + zod → OpenAPI | FastAPI + Pydantic → OpenAPI built in |
-| Sharing types with the UI | **The same zod schemas** in server, UI and future mobile app | Types must be generated from OpenAPI, so there are two languages |
-| Mobile path | React PWA → Capacitor wraps the same code | Same, but the UI is JS anyway, so you work in two languages |
-| Pi 3 footprint | About 60–80 MB RSS | About 40–60 MB RSS |
-| Latency | Both are far faster than the serial bus, which is the real bottleneck (§5) | Same |
-| Future Home Assistant integration | Through MQTT discovery. Works from either language | A native HA integration would be easier in Python |
+|                                   | TypeScript / Node                                                          | Python / asyncio                                                                                                    |
+| --------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Your fluency                      | High                                                                       | Would need to learn                                                                                                 |
+| Serial I/O                        | `serialport` is mature, with prebuilt arm64 binaries                       | `pyserial-asyncio` is mature                                                                                        |
+| Prior art for this amp            | None worth reusing                                                         | `pymonoprice` (the Home Assistant integration). It is a useful protocol reference, but a small, synchronous library |
+| API framework                     | Fastify + `@fastify/websocket` + zod → OpenAPI                             | FastAPI + Pydantic → OpenAPI built in                                                                               |
+| Sharing types with the UI         | **The same zod schemas** in server, UI and future mobile app               | Types must be generated from OpenAPI, so there are two languages                                                    |
+| Mobile path                       | React PWA → Capacitor wraps the same code                                  | Same, but the UI is JS anyway, so you work in two languages                                                         |
+| Pi 3 footprint                    | About 60–80 MB RSS                                                         | About 40–60 MB RSS                                                                                                  |
+| Latency                           | Both are far faster than the serial bus, which is the real bottleneck (§5) | Same                                                                                                                |
+| Future Home Assistant integration | Through MQTT discovery. Works from either language                         | A native HA integration would be easier in Python                                                                   |
 
 Python's two real advantages are `pymonoprice` as a reference and a native Home Assistant integration. Neither outweighs having one language you already know from the hardware driver to the phone app. The bottleneck is a 9600-baud UART, not the runtime. We will still use `pymonoprice` as a protocol reference.
 
@@ -82,6 +82,7 @@ Python's two real advantages are `pymonoprice` as a reference and a native Home 
 ```
 
 **Rules that keep the core stable (R10):**
+
 1. The core does no I/O directly. It talks to an `AmpDriver` and a `ConfigStore` interface.
 2. The REST/WS API is only one adapter on top of `ControllerService`. MQTT or Home Assistant will be another adapter calling the same service and subscribing to the same `EventBus`. Adding one changes nothing in the core.
 3. Auth is a Fastify `onRequest` hook that is registered as a no-op in v1. All routes live under `/api/v1`.
@@ -97,40 +98,45 @@ Each driver publishes its capabilities, and the UI builds its controls from them
 ```ts
 interface ModelDescriptor {
   id: 'monoprice-10761';
-  maxUnits: 3; zonesPerUnit: 6; sources: 6;
+  maxUnits: 3;
+  zonesPerUnit: 6;
+  sources: 6;
   properties: {
-    power:   { type: 'bool' };
-    mute:    { type: 'bool' };
-    dnd:     { type: 'bool' };
-    volume:  { type: 'int', min: 0, max: 38 };
-    treble:  { type: 'int', min: 0, max: 14, center: 7 };
-    bass:    { type: 'int', min: 0, max: 14, center: 7 };
-    balance: { type: 'int', min: 0, max: 20, center: 10 };
-    source:  { type: 'enum', min: 1, max: 6 };
+    power: { type: 'bool' };
+    mute: { type: 'bool' };
+    dnd: { type: 'bool' };
+    volume: { type: 'int'; min: 0; max: 38 };
+    treble: { type: 'int'; min: 0; max: 14; center: 7 };
+    bass: { type: 'int'; min: 0; max: 14; center: 7 };
+    balance: { type: 'int'; min: 0; max: 20; center: 10 };
+    source: { type: 'enum'; min: 1; max: 6 };
   };
-  readOnly: { pa: 'bool'; keypad: 'bool' };   // reported, not settable
+  readOnly: { pa: 'bool'; keypad: 'bool' }; // reported, not settable
 }
 ```
 
 ### 4.2 Driver and transport
 
 ```ts
-interface Transport {            // serial, tcp, loopback
-  open(): Promise<void>; close(): Promise<void>;
+interface Transport {
+  // serial, tcp, loopback
+  open(): Promise<void>;
+  close(): Promise<void>;
   write(bytes: string): Promise<void>;
   onData(cb: (chunk: string) => void): void;
 }
 
 interface AmpDriver {
   readonly model: ModelDescriptor;
-  discover(): Promise<UnitId[]>;                         // which stacked units answer
+  discover(): Promise<UnitId[]>; // which stacked units answer
   queryZone(zone: ZoneId): Promise<ZoneState>;
-  queryUnit(unit: UnitId): Promise<ZoneState[]>;         // batch query, e.g. ?10
+  queryUnit(unit: UnitId): Promise<ZoneState[]>; // batch query, e.g. ?10
   set(zone: ZoneId, prop: SettableProp, value: number | boolean): Promise<void>;
 }
 ```
 
 **CommandQueue** sits between the driver and the transport. It is the only path to the wire.
+
 - One command is in flight at a time, with a per-command timeout and retry.
 - There is a configurable inter-command gap, because the amp drops commands sent back to back.
 - **Two priorities: user/mirror writes go ahead of polls**, so user-facing latency is not stuck behind a poll sweep.
@@ -139,7 +145,7 @@ interface AmpDriver {
 ### 4.3 Monoprice 10761 protocol (summary; to verify on hardware)
 
 - 9600 8N1 by default. Commands end with CR, and the amp echoes them.
-- Zone IDs: unit *u*, zone *z* → `u z`, so 11–16, 21–26 and 31–36. Unit query: `?10`, `?20`, `?30`.
+- Zone IDs: unit _u_, zone _z_ → `u z`, so 11–16, 21–26 and 31–36. Unit query: `?10`, `?20`, `?30`.
 - Query `?11` → `#>11PAPRMUDTVOTRBSBLCHLS`: two digits each for PA, power, mute, DND, volume, treble, bass, balance, source, and keypad (LS).
 - Set: `<11VO20`, `<11CH03`, `<11PR01`, and so on.
 - The **LS (keypad connected) field is how we check R4**. A zone may become a child only if `keypad === false`.
@@ -152,21 +158,21 @@ The codec is pure functions (`parseStatus`, `formatSet`) and is unit-tested agai
 
 At 9600 baud the bus carries about 1 byte/ms.
 
-| Operation | Bytes (approx.) | Bus time |
-|---|---|---|
-| Single-zone query `?11` + reply | ~30 | ~30 ms + amp turnaround |
-| Unit query `?10` (6 zones) | ~165 | ~170 ms + turnaround |
-| Full sweep of 3 units | ~500 | **~500 ms+** |
-| One set command + echo | ~15 | ~15 ms + gap |
+| Operation                       | Bytes (approx.) | Bus time                |
+| ------------------------------- | --------------- | ----------------------- |
+| Single-zone query `?11` + reply | ~30             | ~30 ms + amp turnaround |
+| Unit query `?10` (6 zones)      | ~165            | ~170 ms + turnaround    |
+| Full sweep of 3 units           | ~500            | **~500 ms+**            |
+| One set command + echo          | ~15             | ~15 ms + gap            |
 
 **A full 18-zone sweep at 500 ms would use the whole bus**, leaving no room for user commands. So polling is split into tiers:
 
-| Tier | What | When | Default |
-|---|---|---|---|
-| **Mirror-master poll** | `?xx` for each *master* zone only | Only while ≥1 mirror is enabled | 500 ms |
-| **Mirror-child audit** | `?xx` for children (R4 backup rule) | Only while ≥1 mirror is enabled | 5 s, round-robin |
-| **Interactive sweep** | `?u0` for each installed unit | Only while ≥1 UI client is connected | 2 s |
-| **Idle** | nothing | No mirrors, no clients | — |
+| Tier                   | What                                | When                                 | Default          |
+| ---------------------- | ----------------------------------- | ------------------------------------ | ---------------- |
+| **Mirror-master poll** | `?xx` for each _master_ zone only   | Only while ≥1 mirror is enabled      | 500 ms           |
+| **Mirror-child audit** | `?xx` for children (R4 backup rule) | Only while ≥1 mirror is enabled      | 5 s, round-robin |
+| **Interactive sweep**  | `?u0` for each installed unit       | Only while ≥1 UI client is connected | 2 s              |
+| **Idle**               | nothing                             | No mirrors, no clients               | —                |
 
 With one master, the mirror poll uses about 10–15% of the bus. All intervals are set in config, and the RTT metric shows whether they fit. Later options: raising the amp's baud rate if the hardware supports it, and adaptive timing (R6).
 
@@ -177,9 +183,10 @@ With one master, the mirror poll uses about 10–15% of the bus. All intervals a
 `ZoneStateCache` holds the last known state of every zone, a `lastSyncedAt` time, and a set of **pending writes** per zone.
 
 **Write path (API → hardware):**
+
 1. Validate the request against the model descriptor.
 2. Queue the writes, sending **only the properties that changed**.
-3. While a write is pending, poll results for *that property of that zone* are ignored, so a stale poll cannot undo a write that is still in flight.
+3. While a write is pending, poll results for _that property of that zone_ are ignored, so a stale poll cannot undo a write that is still in flight.
 4. When the amp acknowledges the write, update the cache and emit `zone.changed`.
 5. If the zone is a mirror master, the MirrorEngine sends the change to its children straight away (R5) through the same path and updates their cache. The next poll then sees no difference.
 
@@ -193,13 +200,16 @@ The UI applies changes optimistically and reconciles with `zone.changed` events.
 
 ```ts
 interface MirrorGroup {
-  id: string; name?: string; enabled: boolean;
+  id: string;
+  name?: string;
+  enabled: boolean;
   master: ZoneId;
-  children: { zone: ZoneId; volumeOffset: number }[];   // offset starts at 0
+  children: { zone: ZoneId; volumeOffset: number }[]; // offset starts at 0
 }
 ```
 
 **Constraints, enforced when a group is created or edited:**
+
 - A child must report `keypad === false`. If it doesn't, the API returns 409 with a reason.
 - A zone can belong to only one group, as either master or child. No chains.
 - The master may have a keypad. That is the expected case.
@@ -208,13 +218,13 @@ interface MirrorGroup {
 
 **Sources of change, and how each is handled:**
 
-| Event | Action |
-|---|---|
-| API changes the master | Write the master, then send the changed properties to every child right away |
-| Master poll finds a difference from the cache (keypad or front-panel change) | Update the cache, then send only the changed properties to every child |
-| Child audit or API finds the child's **volume** ≠ expected | `offset = child.volume − master.volume`, then persist it. Emit `mirror.offsetChanged` |
-| Child audit or API finds **any other** property ≠ expected | Remove the child from the group, then persist. Emit `mirror.childDetached` |
-| A child reports `keypad === true` during an audit | Detach it with reason `keypad-detected` |
+| Event                                                                        | Action                                                                                |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| API changes the master                                                       | Write the master, then send the changed properties to every child right away          |
+| Master poll finds a difference from the cache (keypad or front-panel change) | Update the cache, then send only the changed properties to every child                |
+| Child audit or API finds the child's **volume** ≠ expected                   | `offset = child.volume − master.volume`, then persist it. Emit `mirror.offsetChanged` |
+| Child audit or API finds **any other** property ≠ expected                   | Remove the child from the group, then persist. Emit `mirror.childDetached`            |
+| A child reports `keypad === true` during an audit                            | Detach it with reason `keypad-detected`                                               |
 
 **Enabling a group:** run a full sync, which reads the master and writes the expected state to each child. Then start the poll tier.
 
@@ -238,21 +248,21 @@ The cache is **not** persisted, because the amp is the source of truth. Only con
 
 All JSON. Schemas come from the shared zod package and are published as OpenAPI at `/api/v1/docs`.
 
-| Method | Path | Purpose |
-|---|---|---|
-| GET | `/api/v1/system` | Model descriptor, installed units, connection status, queue RTT |
-| POST | `/api/v1/system/discover` | Re-detect stacked units |
-| GET | `/api/v1/zones` | All zones: state, name, mirror role |
-| GET | `/api/v1/zones/:id` | One zone |
-| PATCH | `/api/v1/zones/:id` | Partial update `{ volume?, source?, power?, … }` |
-| PUT | `/api/v1/zones/:id/name` | Rename a zone |
-| GET | `/api/v1/sources` | Shared sources (1–6) and their names |
-| PUT | `/api/v1/sources/:id/name` | Rename a source |
-| GET / POST | `/api/v1/mirrors` | List or create mirror groups |
-| PATCH / DELETE | `/api/v1/mirrors/:id` | Edit, enable/disable, or delete a group |
-| GET / PATCH | `/api/v1/config` | Serial port, baud, poll intervals |
-| GET | `/api/v1/serial-ports` | List candidate ports for the settings UI |
-| WS | `/api/v1/events` | Sends a snapshot on connect, then events |
+| Method         | Path                       | Purpose                                                         |
+| -------------- | -------------------------- | --------------------------------------------------------------- |
+| GET            | `/api/v1/system`           | Model descriptor, installed units, connection status, queue RTT |
+| POST           | `/api/v1/system/discover`  | Re-detect stacked units                                         |
+| GET            | `/api/v1/zones`            | All zones: state, name, mirror role                             |
+| GET            | `/api/v1/zones/:id`        | One zone                                                        |
+| PATCH          | `/api/v1/zones/:id`        | Partial update `{ volume?, source?, power?, … }`                |
+| PUT            | `/api/v1/zones/:id/name`   | Rename a zone                                                   |
+| GET            | `/api/v1/sources`          | Shared sources (1–6) and their names                            |
+| PUT            | `/api/v1/sources/:id/name` | Rename a source                                                 |
+| GET / POST     | `/api/v1/mirrors`          | List or create mirror groups                                    |
+| PATCH / DELETE | `/api/v1/mirrors/:id`      | Edit, enable/disable, or delete a group                         |
+| GET / PATCH    | `/api/v1/config`           | Serial port, baud, poll intervals                               |
+| GET            | `/api/v1/serial-ports`     | List candidate ports for the settings UI                        |
+| WS             | `/api/v1/events`           | Sends a snapshot on connect, then events                        |
 
 **WebSocket events:** `snapshot`, `zone.changed` (diff only), `mirror.updated`, `mirror.offsetChanged`, `mirror.childDetached`, `connection.changed`, `command.failed`.
 Commands go through REST and the WebSocket only pushes. This keeps the API simple to call from curl, scripts and future integrations.
@@ -262,6 +272,7 @@ Commands go through REST and the WebSocket only pushes. This keeps the API simpl
 ## 10. Config store
 
 A single JSON file, by default `/var/lib/open-zone/config.json` (path can be overridden with `OZ_DATA_DIR`).
+
 - It is validated with zod when loaded, and carries a `schemaVersion` so it can be migrated later.
 - Writes are atomic: write to a temp file, fsync, then rename.
 - It holds the serial settings, poll intervals, zone names, source names and mirror groups.
@@ -301,12 +312,12 @@ docs/
 
 ## 13. Future-proofing checklist (R10)
 
-| Future feature | Where it goes | Core change? |
-|---|---|---|
-| Auth (API key or login) | Fastify `onRequest` hook, plus a token in the WebSocket handshake | No |
-| MQTT / Home Assistant | New adapter package subscribing to `EventBus` and calling `ControllerService` | No |
-| Another amp model | New driver + `ModelDescriptor` | No |
-| Adaptive polling | `PollScheduler` strategy | No (internal to scheduler) |
-| Scenes / schedules | New service on top of `ControllerService`; the config schema version is bumped | No |
-| iOS / Android app | Capacitor wrapping `packages/ui` | No |
+| Future feature                  | Where it goes                                                                      | Core change?                                                                                                                                          |
+| ------------------------------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Auth (API key or login)         | Fastify `onRequest` hook, plus a token in the WebSocket handshake                  | No                                                                                                                                                    |
+| MQTT / Home Assistant           | New adapter package subscribing to `EventBus` and calling `ControllerService`      | No                                                                                                                                                    |
+| Another amp model               | New driver + `ModelDescriptor`                                                     | No                                                                                                                                                    |
+| Adaptive polling                | `PollScheduler` strategy                                                           | No (internal to scheduler)                                                                                                                            |
+| Scenes / schedules              | New service on top of `ControllerService`; the config schema version is bumped     | No                                                                                                                                                    |
+| iOS / Android app               | Capacitor wrapping `packages/ui`                                                   | No                                                                                                                                                    |
 | Multiple amps on separate ports | A `Device` registry: several driver instances, with zone IDs namespaced per device | Small change. The v1 API already nests zones under a single implicit device, so `/devices/:id/zones` can be added without breaking the existing paths |
