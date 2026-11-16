@@ -28,4 +28,4 @@ fi
 echo
 echo "Done. Try it with the emulator:"
 echo "  npm run simulate"
-echo "Then open http://$(hostname).local:8080 on your phone."
+echo "Then open http://$(hostname | sed "s/\.local$//").local:8080 on your phone."

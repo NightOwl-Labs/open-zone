@@ -48,4 +48,4 @@ sudo systemctl restart open-zone
 echo "open-zone service installed${ARGS:+ (simulator)}."
 echo "  Status: systemctl status open-zone"
 echo "  Logs:   journalctl -u open-zone -f"
-echo "  Open:   http://$(hostname).local:$PORT"
+echo "  Open:   http://$(hostname | sed "s/\.local$//").local:$PORT"
