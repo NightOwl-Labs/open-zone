@@ -82,7 +82,7 @@ const addresses = Object.values(networkInterfaces())
 logger.info(`open-zone ${values.simulate ? '(SIMULATOR) ' : ''}listening on port ${port}`);
 logger.info(`config: ${store.path}`);
 for (const url of [
-  `http://${hostname()}.local:${port}`,
+  `http://${hostname().replace(/\.local$/, '')}.local:${port}`,
   ...addresses.map((a) => `http://${a}:${port}`),
 ]) {
   logger.info(`  ${url}`);

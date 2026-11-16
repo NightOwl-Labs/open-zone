@@ -41,13 +41,13 @@
    ```sh
    sudo usermod -aG dialout $USER
    ```
-4. Get the code. Only runtime dependencies are needed; there is no build step:
+4. Get the code and install it (see [getting-started-pi.md](getting-started-pi.md) for details):
    ```sh
    git clone https://github.com/NightOwl-Labs/open-zone.git
    cd open-zone
-   npm ci --omit=dev
+   ./scripts/install.sh
    ```
-   You may see an `install-scripts` warning for `@serialport/bindings-cpp`. It is harmless: prebuilt arm64 binaries ship with the package, so nothing needs compiling.
+   The probe alone needs only the runtime dependencies, so `npm ci --omit=dev` is enough if you want to skip building the UI.
 
 ## Run the probe
 

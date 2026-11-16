@@ -25,7 +25,7 @@ Each phase ends with something that can be demonstrated. Hardware is needed from
 - Built ahead of plan: the PollScheduler tiers and reconnect/recovery logic (planned for Phase 3) live in the core and are tested against the emulator.
 - **Done when:** `oz-probe` controls all installed zones, and measured timings are recorded in `docs/hardware-notes.md`. If needed, the default poll intervals are revised.
 
-## Phase 3: Server
+## Phase 3: Server ✅ (hardware recovery test pending)
 
 - Fastify app: REST routes, WebSocket events, OpenAPI docs, static hosting, and a no-op auth hook.
 - JSON ConfigStore (atomic writes, schema versioning).
@@ -33,11 +33,11 @@ Each phase ends with something that can be demonstrated. Hardware is needed from
 - Startup and recovery state machine (ARCHITECTURE §8).
 - **Done when:** curl and `wscat` can drive the simulator and the real amp. Unplugging and replugging USB recovers automatically.
 
-## Phase 4: UI (PWA)
+## Phase 4: UI (PWA) — first version ✅
 
 - Zones list, zone detail, mirrors editor (keypad zones disabled), settings (port picker, discovery, intervals, zone and source names, RTT readout).
 - Optimistic updates with rollback on `command.failed`. Throttled volume sliders.
-- PWA manifest and service worker so it can be added to the phone home screen.
+- PWA manifest so it can be added to the phone home screen. A service worker needs HTTPS (or localhost) and is deferred until auth/TLS is added.
 - **Done when:** every zone can be controlled from a phone over the LAN, with changes showing within about 1 poll interval.
 
 ## Phase 5: Mirroring on hardware and tuning
