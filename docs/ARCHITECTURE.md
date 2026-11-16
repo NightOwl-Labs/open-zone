@@ -22,6 +22,7 @@ Status: draft, 2026-11-15.
 | R9a | The amp cannot report which source inputs are connected, so sources can be disabled. Disabled sources are hidden from zone pickers and rejected by the API, though keypads and mirrors may still select them.                                                                                                                        | user   |
 | R9b | A zone following an active mirror shows no controls of its own, only what it follows. Each follower has a volume offset that can be set in the mirror editor (±38) or learned from a direct volume change.                                                                                                                           | user   |
 | R9c | Units are auto-detected (a unit is present if its first zone answers). Zones are not: every unit reports 6 zones whether or not speakers are wired. Zones can therefore be disabled, which hides them, rejects commands to them and keeps them out of mirrors. A zone in a mirror must be removed from it before it can be disabled. | user   |
+| R9d | "All off" turns every enabled zone off at once. There can be any number of scenes, each with a name, one source, a preset volume per zone and an optional "turn other zones off". Activating a scene skips followers of active mirrors and never detaches them.                                                                      | user   |
 | R10 | Other multi-zone amp models can be added later. Integrations (MQTT, Home Assistant) and auth can be added later **without changing core decisions**.                                                                                                                                                                                 | user   |
 | R11 | Local network only, no auth in v1. No user roles, ever.                                                                                                                                                                                                                                                                              | user   |
 
@@ -254,23 +255,27 @@ The cache is **not** persisted, because the amp is the source of truth. Only con
 
 All JSON. Schemas come from the shared zod package and are published as OpenAPI at `/api/v1/docs`.
 
-| Method         | Path                       | Purpose                                                                                                  |
-| -------------- | -------------------------- | -------------------------------------------------------------------------------------------------------- |
-| GET            | `/api/v1/system`           | Model descriptor, installed units, connection status, queue RTT                                          |
-| POST           | `/api/v1/system/discover`  | Re-detect stacked units                                                                                  |
-| GET            | `/api/v1/zones`            | All zones: state, name, mirror role                                                                      |
-| GET            | `/api/v1/zones/:id`        | One zone                                                                                                 |
-| PATCH          | `/api/v1/zones/:id`        | Partial update `{ volume?, source?, power?, … }`                                                         |
-| PATCH          | `/api/v1/zones/:id/config` | `{ name?, enabled? }`: rename, or disable an unused zone                                                 |
-| GET            | `/api/v1/sources`          | Shared sources (1–6) with names and enabled flags                                                        |
-| PATCH          | `/api/v1/sources/:id`      | `{ name?, enabled? }`: rename, or hide an unused source from pickers (the API then rejects selecting it) |
-| GET / POST     | `/api/v1/mirrors`          | List or create mirror groups                                                                             |
-| PATCH / DELETE | `/api/v1/mirrors/:id`      | Edit, enable/disable, or delete a group                                                                  |
-| GET / PATCH    | `/api/v1/config`           | Home name (`home.name`), polling and queue settings. Changes are broadcast as `config.updated`           |
-| GET            | `/api/v1/serial-ports`     | List candidate ports for the settings UI                                                                 |
-| WS             | `/api/v1/events`           | Sends a snapshot on connect, then events                                                                 |
+| Method         | Path                          | Purpose                                                                                                    |
+| -------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| GET            | `/api/v1/system`              | Model descriptor, installed units, connection status, queue RTT                                            |
+| POST           | `/api/v1/system/discover`     | Re-detect stacked units                                                                                    |
+| GET            | `/api/v1/zones`               | All zones: state, name, mirror role                                                                        |
+| GET            | `/api/v1/zones/:id`           | One zone                                                                                                   |
+| PATCH          | `/api/v1/zones/:id`           | Partial update `{ volume?, source?, power?, … }`                                                           |
+| PATCH          | `/api/v1/zones/:id/config`    | `{ name?, enabled? }`: rename, or disable an unused zone                                                   |
+| GET            | `/api/v1/sources`             | Shared sources (1–6) with names and enabled flags                                                          |
+| PATCH          | `/api/v1/sources/:id`         | `{ name?, enabled? }`: rename, or hide an unused source from pickers (the API then rejects selecting it)   |
+| GET / POST     | `/api/v1/mirrors`             | List or create mirror groups                                                                               |
+| POST           | `/api/v1/zones/all-off`       | Turn every enabled zone off (mirror followers are not detached)                                            |
+| GET / POST     | `/api/v1/scenes`              | List or create scenes: `{ name, source, zones: [{ zone, volume }], othersOff? }`                           |
+| PATCH / DELETE | `/api/v1/scenes/:id`          | Edit or delete a scene                                                                                     |
+| POST           | `/api/v1/scenes/:id/activate` | Apply a scene; returns `{ applied, skipped }` (followers of active mirrors are skipped and keep following) |
+| PATCH / DELETE | `/api/v1/mirrors/:id`         | Edit, enable/disable, or delete a group                                                                    |
+| GET / PATCH    | `/api/v1/config`              | Home name (`home.name`), polling and queue settings. Changes are broadcast as `config.updated`             |
+| GET            | `/api/v1/serial-ports`        | List candidate ports for the settings UI                                                                   |
+| WS             | `/api/v1/events`              | Sends a snapshot on connect, then events                                                                   |
 
-**WebSocket events:** `snapshot`, `zone.changed` (diff only), `zone.updated`, `source.updated`, `config.updated`, `mirror.updated`, `mirror.offsetChanged`, `mirror.followerDetached`, `connection.changed`, `command.failed`.
+**WebSocket events:** `snapshot`, `zone.changed` (diff only), `zone.updated`, `source.updated`, `config.updated`, `scene.updated`, `scene.deleted`, `scene.activated`, `zones.allOff`, `mirror.updated`, `mirror.offsetChanged`, `mirror.followerDetached`, `connection.changed`, `command.failed`.
 Commands go through REST and the WebSocket only pushes. This keeps the API simple to call from curl, scripts and future integrations.
 
 ---

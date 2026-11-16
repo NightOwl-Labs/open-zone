@@ -3,6 +3,7 @@ import type {
   Config,
   ControllerEvent,
   MirrorGroup,
+  Scene,
   SourceView,
   SystemView,
   ZonePatch,
@@ -27,6 +28,7 @@ export interface AppState {
   zones: ZoneView[];
   sources: SourceView[];
   mirrors: MirrorGroup[];
+  scenes: Scene[];
   config: Config | null;
   toasts: Toast[];
 }
@@ -54,6 +56,7 @@ let state: AppState = {
   zones: [],
   sources: [],
   mirrors: [],
+  scenes: [],
   config: null,
   toasts: [],
 };
@@ -147,6 +150,7 @@ function applySnapshot(snap: Snapshot): void {
     zones: snap.zones,
     sources: snap.sources,
     mirrors: snap.mirrors,
+    scenes: snap.scenes ?? [],
     config: snap.config,
   }));
 }
@@ -193,6 +197,24 @@ function handle(msg: ServerMessage): void {
           : `its ${msg.property ?? 'settings'} changed`;
       return toast(`${nameOf(msg.zone)} left the mirror because ${why}`);
     }
+    case 'scene.updated':
+      return update((s) => ({
+        ...s,
+        scenes: s.scenes.some((x) => x.id === msg.scene.id)
+          ? s.scenes.map((x) => (x.id === msg.scene.id ? msg.scene : x))
+          : [...s.scenes, msg.scene],
+      }));
+    case 'scene.deleted':
+      return update((s) => ({ ...s, scenes: s.scenes.filter((x) => x.id !== msg.sceneId) }));
+    case 'scene.activated': {
+      const name = state.scenes.find((x) => x.id === msg.sceneId)?.name ?? 'Scene';
+      const skipped = msg.skipped.length
+        ? ` (${msg.skipped.map((k) => `${nameOf(k.zone)}: ${k.reason}`).join(', ')})`
+        : '';
+      return toast(`${name} is on${skipped}`);
+    }
+    case 'zones.allOff':
+      return toast('All zones off');
     case 'config.updated':
       return update((s) => ({ ...s, config: msg.config }));
     case 'connection.changed':

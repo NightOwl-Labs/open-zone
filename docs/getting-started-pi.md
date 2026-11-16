@@ -36,6 +36,8 @@ The emulator acts like three stacked 10761 units (18 zones). Zones 11–15, 21�
 
 ### Things to try
 
+- **Scenes:** create a scene (for example Dinner: three zones on one source, each at its own volume, other zones off), then use its button at the top of the Zones screen. **All off** sits next to it.
+
 - **Settings → Home:** name your home (shown at the top of every screen) and pick compact, normal or large spacing for this device.
 
 - **Zones:** turn zones on, change sources and volume, tap a zone name for tone, balance and renaming.

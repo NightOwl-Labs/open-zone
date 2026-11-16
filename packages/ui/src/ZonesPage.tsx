@@ -6,6 +6,7 @@ import { RoomTile } from './designs/TilesZones.tsx';
 import type { Design } from './design.ts';
 import { Toggle } from './components.tsx';
 import { roleOf, sourceLabel, zoneLabel } from './format.ts';
+import { QuickBar } from './ScenesPage.tsx';
 import { useApp } from './store.ts';
 import {
   FollowingLine,
@@ -113,6 +114,7 @@ export function ZonesPage({
   const Detail = design === 'tiles' ? TileDetail : ZoneDetail;
   return (
     <>
+      <QuickBar />
       <div className={`zone-list zone-list-${design}`}>
         {zones.map((z) => (
           <Item key={z.zone} z={z} onOpen={() => onOpen(z.zone)} />

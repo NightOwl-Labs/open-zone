@@ -84,6 +84,7 @@ function snapshot(controller: Controller, simulator: boolean) {
     zones: controller.getZones(),
     sources: controller.getSources(),
     mirrors: controller.listMirrors(),
+    scenes: controller.listScenes(),
     config: controller.getConfig(),
   };
 }

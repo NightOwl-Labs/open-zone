@@ -1,21 +1,23 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Icon, StatusPill, Toasts } from './components.tsx';
 import { MirrorsPage } from './MirrorsPage.tsx';
+import { ScenesPage } from './ScenesPage.tsx';
 import { SettingsPage } from './SettingsPage.tsx';
 import { design } from './design.ts';
 import { connect, refresh, useApp } from './store.ts';
 import { ZonesPage } from './ZonesPage.tsx';
 
-type Tab = 'zones' | 'mirrors' | 'settings';
+type Tab = 'zones' | 'scenes' | 'mirrors' | 'settings';
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'zones', label: 'Zones' },
+  { id: 'scenes', label: 'Scenes' },
   { id: 'mirrors', label: 'Mirrors' },
   { id: 'settings', label: 'Settings' },
 ];
 
 function readHash(): Tab {
   const h = location.hash.slice(1);
-  return h === 'mirrors' || h === 'settings' ? h : 'zones';
+  return h === 'scenes' || h === 'mirrors' || h === 'settings' ? h : 'zones';
 }
 
 export function App() {
@@ -56,6 +58,7 @@ export function App() {
         {tab === 'zones' && (
           <ZonesPage design={design} open={openZone} onOpen={setOpenZone} onClose={closeZone} />
         )}
+        {tab === 'scenes' && <ScenesPage />}
         {tab === 'mirrors' && <MirrorsPage />}
         {tab === 'settings' && <SettingsPage />}
       </main>

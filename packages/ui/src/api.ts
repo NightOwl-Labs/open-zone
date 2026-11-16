@@ -1,5 +1,7 @@
 import type {
+  ActivationResult,
   Config,
+  Scene,
   MirrorGroup,
   PollingConfig,
   SourceView,
@@ -45,7 +47,15 @@ export interface Snapshot {
   zones: ZoneView[];
   sources: SourceView[];
   mirrors: MirrorGroup[];
+  scenes: Scene[];
   config: Config;
+}
+
+export interface SceneInput {
+  name: string;
+  source: number;
+  zones: Array<{ zone: number; volume: number }>;
+  othersOff: boolean;
 }
 
 export const api = {
@@ -60,6 +70,12 @@ export const api = {
   updateMirror: (id: string, input: MirrorInput) =>
     request<MirrorGroup>('PATCH', `/mirrors/${id}`, input),
   deleteMirror: (id: string) => request<void>('DELETE', `/mirrors/${id}`),
+  allOff: () => request<ActivationResult>('POST', '/zones/all-off'),
+  createScene: (input: SceneInput) => request<Scene>('POST', '/scenes', input),
+  updateScene: (id: string, input: Partial<SceneInput>) =>
+    request<Scene>('PATCH', `/scenes/${id}`, input),
+  deleteScene: (id: string) => request<void>('DELETE', `/scenes/${id}`),
+  activateScene: (id: string) => request<ActivationResult>('POST', `/scenes/${id}/activate`),
   updateHome: (name: string | null) => request<Config>('PATCH', '/config', { home: { name } }),
   updatePolling: (polling: Partial<PollingConfig>) =>
     request<Config>('PATCH', '/config', { polling }),
