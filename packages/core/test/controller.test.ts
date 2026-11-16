@@ -126,6 +126,41 @@ describe('Controller: zone commands and naming', () => {
   });
 });
 
+describe('Controller: zones that are off (10761 ignores their settings)', () => {
+  it('rejects API setting changes to an off zone unless the patch turns it on', async () => {
+    const { ctl, sets } = await setup();
+    await expect(ctl.setZone(13, { volume: 20 })).rejects.toThrow(/zone 13 is off/);
+    expect(sets()).toEqual([]);
+    await ctl.setZone(13, { power: true, volume: 20 });
+    expect(sets()).toEqual(['<13PR01', '<13VO20']);
+  });
+
+  it('allows settings in the same patch that turns a zone off (sent before power-off)', async () => {
+    const { ctl, sets } = await setup();
+    await ctl.setZone(13, { power: true });
+    await ctl.setZone(13, { volume: 5, power: false });
+    expect(sets().slice(-2)).toEqual(['<13VO05', '<13PR00']);
+  });
+
+  it('does not send mirror settings to followers while primary and follower are off', async () => {
+    const { ctl, amp, sets } = await setup({ amp: { ignoreSetsWhenOff: true } });
+    await ctl.createMirror({ primary: 11, followers: [12] });
+    await ctl.whenIdle();
+    const before = sets().length;
+    amp.pressKeypad(11, { volume: 30, source: 3 }); // keypad change while off
+    await sleep(400);
+    expect(
+      sets()
+        .slice(before)
+        .filter((c) => c.startsWith('<12')),
+    ).toEqual([]);
+    amp.pressKeypad(11, { power: true });
+    await vi.waitFor(() =>
+      expect(amp.getZone(12)).toMatchObject({ power: true, volume: 30, source: 3 }),
+    );
+  });
+});
+
 describe('Controller: home settings', () => {
   it('stores and clears the home name, announcing config changes', async () => {
     const { ctl, store, ofType } = await setup();

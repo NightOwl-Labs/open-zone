@@ -104,7 +104,13 @@ async function main(): Promise<number> {
   try {
     await checkEnvironment(report);
     const emulator = opts.simulate
-      ? new MonopriceEmulator({ units: 2, keypadZones: [11, 21], latencyMs: 15, baudRate: 9600 })
+      ? new MonopriceEmulator({
+          units: 2,
+          keypadZones: [11, 21],
+          latencyMs: 15,
+          baudRate: 9600,
+          ignoreSetsWhenOff: true,
+        })
       : undefined;
     const path = opts.simulate ? 'simulator' : await choosePort(opts, ui, report);
     if (!path) return finish(report, transcript, values.out, ui);

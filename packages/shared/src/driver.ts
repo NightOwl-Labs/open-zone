@@ -20,6 +20,16 @@ export interface AmpDriver {
   set(zone: ZoneId, prop: SettableProp, value: number | boolean): Promise<void>;
 }
 
+/** The amp answered, but has no such zone (e.g. an expansion unit that isn't installed). */
+export class ZoneNotPresentError extends Error {
+  readonly command: string;
+  constructor(command: string) {
+    super(`No such zone: ${JSON.stringify(command)} returned no status`);
+    this.name = 'ZoneNotPresentError';
+    this.command = command;
+  }
+}
+
 export class DriverTimeoutError extends Error {
   readonly command: string;
   readonly received: string;

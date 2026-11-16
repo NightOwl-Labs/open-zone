@@ -564,7 +564,7 @@ export async function checkWrites(ctx: Ctx, zone: ZoneId): Promise<void> {
   const sticks = readBack.treble === t1;
   report.add({
     id: 'read-after-write',
-    status: sticks ? 'pass' : 'fail',
+    status: sticks ? 'pass' : before.power ? 'fail' : 'info',
     summary: `Set treble ${before.treble}→${t1} on zone ${zone} (${before.power ? 'on' : 'off'}): ack in ${setMs} ms; immediate read-back shows ${readBack.treble}`,
   });
   report.find('Set acknowledgement time', `${setMs} ms`);
@@ -582,7 +582,16 @@ export async function checkWrites(ctx: Ctx, zone: ZoneId): Promise<void> {
     );
   }
 
-  // Rapid alternating writes with no gap.
+  // Rapid alternating writes with no gap (meaningless on an off zone: writes are ignored).
+  if (!before.power && !sticks) {
+    report.add({
+      id: 'rapid-writes',
+      status: 'skip',
+      summary: 'Skipped: the test zone is off and this amp ignores settings sent to off zones',
+    });
+    await driver.set(zone, 'treble', before.treble);
+    return;
+  }
   let errors = 0;
   for (let i = 0; i < 10; i++) {
     try {

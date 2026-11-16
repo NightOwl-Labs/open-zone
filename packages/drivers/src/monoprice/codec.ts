@@ -17,6 +17,8 @@ export const MONOPRICE_10761: ModelDescriptor = {
   maxUnits: 3,
   zonesPerUnit: 6,
   sourceCount: 6,
+  // Confirmed on hardware (oz-probe, 2026-11-16): writes to an off zone are acked but not applied.
+  quirks: { ignoresSetsWhenOff: true },
   properties: {
     power: { type: 'bool' },
     mute: { type: 'bool' },

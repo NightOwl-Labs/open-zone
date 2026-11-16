@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { DriverTimeoutError } from '@open-zone/shared';
+import { DriverTimeoutError, ZoneNotPresentError } from '@open-zone/shared';
+import { Listeners, type Transport } from '../src/index.ts';
 import { MonopriceDriver, MonopriceEmulator } from '../src/index.ts';
 
 async function setup(
@@ -46,6 +47,47 @@ describe('MonopriceDriver against the emulator', () => {
   it('discovers stacked units', async () => {
     const { driver } = await setup({ units: 2 }, 30);
     expect(await driver.discoverUnits()).toEqual([1, 2]);
+  });
+
+  it('reports a missing zone quickly when the amp answers with only echo + prompt', async () => {
+    const { driver } = await setup({ units: 1 }, 1000);
+    const t0 = Date.now();
+    await expect(driver.queryZone(21)).rejects.toBeInstanceOf(ZoneNotPresentError);
+    expect(Date.now() - t0).toBeLessThan(400);
+  });
+
+  it('discovers a single unit without waiting out timeouts', async () => {
+    const { driver } = await setup({ units: 1 }, 1000);
+    const t0 = Date.now();
+    expect(await driver.discoverUnits()).toEqual([1]);
+    expect(Date.now() - t0).toBeLessThan(600);
+  });
+
+  it('waits for the status record that follows the prompt in a later chunk (real FTDI timing)', async () => {
+    // Captured from hardware: "?11\r\n#" first, then ">11…\r\r\n#" ~16 ms later.
+    const data = new Listeners<[string]>();
+    let open = false;
+    const transport: Transport = {
+      description: 'chunked',
+      get isOpen() {
+        return open;
+      },
+      open: async () => {
+        open = true;
+      },
+      close: async () => {
+        open = false;
+      },
+      write: async (cmd) => {
+        setTimeout(() => data.emit(`${cmd.trim()}\r\n#`), 5);
+        setTimeout(() => data.emit('>1100000000151014100500\r\r\n#'), 40);
+      },
+      onData: (l) => data.add(l),
+      onClose: () => () => {},
+    };
+    const driver = new MonopriceDriver(transport, { timeoutMs: 1000, retries: 0 });
+    await driver.open();
+    expect(await driver.queryZone(11)).toMatchObject({ zone: 11, volume: 15, source: 5 });
   });
 
   it('times out on zones that do not answer', async () => {

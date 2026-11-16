@@ -61,7 +61,7 @@ export const PollingConfigSchema = z.object({
 
 export const QueueConfigSchema = z.object({
   /** Idle time enforced between consecutive commands on the wire. */
-  interCommandGapMs: z.number().int().min(0).default(50),
+  interCommandGapMs: z.number().int().min(0).default(20),
   /** Max wait for a complete response. */
   commandTimeoutMs: z.number().int().min(50).default(1000),
   /** Retries after a timeout before the command is failed. */

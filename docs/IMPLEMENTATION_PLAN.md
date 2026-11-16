@@ -16,7 +16,7 @@ Each phase ends with something that can be demonstrated. Hardware is needed from
 - MirrorEngine with full unit tests: immediate fan-out, poll-detected primary change, the volume-offset rule, the detach rule, keypad rejection, and the no-chains rule.
 - **Done when:** the test suite covers every row of the mirror-engine table in ARCHITECTURE §7.
 
-## Phase 2: Monoprice driver and hardware bring-up — code ✅, hardware validation pending
+## Phase 2: Monoprice driver and hardware bring-up ✅ (validated on hardware 2026-11-16; see hardware-notes.md)
 
 - Pure codec (`parseStatus`, `formatSet`) tested against fixtures.
 - Serial transport (`serialport`) and a TCP transport.

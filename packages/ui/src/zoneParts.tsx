@@ -239,15 +239,22 @@ export function ZoneDetail({ zone, onClose }: ZoneDetailProps) {
               <span>Power</span>
               <Toggle label="Power" checked={s.power} onChange={(v) => change(z, { power: v })} />
             </div>
-            <div className="field">
-              <span>Source</span>
-              <SourceSelect z={z} sources={sources} />
-            </div>
-            <div className="field">
-              <span>Volume</span>
-              <VolumeRow z={z} />
-            </div>
-            <ToneControls z={z} />
+            {s.power ? (
+              <>
+                <div className="field">
+                  <span>Source</span>
+                  <SourceSelect z={z} sources={sources} />
+                </div>
+                <div className="field">
+                  <span>Volume</span>
+                  <VolumeRow z={z} />
+                </div>
+                <ToneControls z={z} />
+              </>
+            ) : (
+              // The amp ignores settings sent to a zone that is off.
+              <p className="muted-text">Turn the zone on to choose a source and adjust sound.</p>
+            )}
           </>
         )
       )}

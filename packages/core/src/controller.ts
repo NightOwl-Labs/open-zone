@@ -723,9 +723,11 @@ export class Controller {
 
   /** Write a patch to one zone, in a safe order, updating the cache as each write is acknowledged. */
   private async writeZone(zone: ZoneId, patch: ZonePatch, origin: ChangeOrigin): Promise<void> {
+    if (Object.keys(patch).length === 0) return;
+    if (!this.cache.get(zone)) await this.refreshZone(zone, 'high');
+    patch = this.dropIgnoredWrites(zone, patch, origin);
     const writes = orderWrites(patch);
     if (writes.length === 0) return;
-    if (!this.cache.get(zone)) await this.refreshZone(zone, 'high');
     const remaining = new Set(writes.map(([p]) => p));
     this.cache.markPending(zone, [...remaining]);
     const changes: Record<string, number | boolean> = {};
@@ -749,6 +751,26 @@ export class Controller {
     // Mirror fan-out runs in the background: the caller gets its answer as
     // soon as its own zone is written; followers follow immediately after.
     this.track(this.reactToChange(zone, changes as ZonePatch, origin));
+  }
+
+  /**
+   * Some amps (the 10761 included) ack but ignore settings sent to a zone that
+   * is off. Sending them would leave the cache claiming values the amp never
+   * applied. API callers get a clear error; mirror fan-out just skips them
+   * (followers are re-read and fully synced when they power on).
+   */
+  private dropIgnoredWrites(zone: ZoneId, patch: ZonePatch, origin: ChangeOrigin): ZonePatch {
+    if (!this.model.quirks?.ignoresSetsWhenOff) return patch;
+    const isOn = this.cache.get(zone)?.power ?? false;
+    if (isOn || patch.power === true) return patch;
+    const ignored = Object.keys(patch).filter((k) => k !== 'power');
+    if (ignored.length === 0) return patch;
+    if (origin === 'api') {
+      throw new PatchValidationError([
+        `zone ${zone} is off; turn it on before changing ${ignored.join(', ')}`,
+      ]);
+    }
+    return patch.power === undefined ? {} : { power: patch.power };
   }
 
   private async exec<T>(task: () => Promise<T>, options: RunOptions): Promise<T> {

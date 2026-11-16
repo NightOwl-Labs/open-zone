@@ -154,6 +154,8 @@ interface AmpDriver {
 - Set: `<11VO20`, `<11CH03`, `<11PR01`, and so on.
 - The **LS (keypad connected) field is how we check R4**. A zone may become a follower only if `keypad === false`.
 
+Observed on hardware (see `hardware-notes.md`): a missing zone or unit returns only the echo and `#`, and settings sent to an off zone are acked but ignored (`quirks.ignoresSetsWhenOff`).
+
 The codec is pure functions (`parseStatus`, `formatSet`) and is unit-tested against captured byte fixtures.
 
 ---
