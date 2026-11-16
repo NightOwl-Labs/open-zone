@@ -36,4 +36,6 @@ export interface SystemView {
   units: UnitId[];
   queue: QueueStats;
   polling: { mirrorActive: boolean; interactiveClients: number };
+  /** True when running against the built-in emulator instead of hardware. */
+  simulator?: boolean;
 }

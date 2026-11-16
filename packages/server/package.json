@@ -1,0 +1,18 @@
+{
+  "name": "@open-zone/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/app.ts"
+  },
+  "dependencies": {
+    "@fastify/static": "^10.1.11",
+    "@fastify/websocket": "^11.3.7",
+    "@open-zone/core": "*",
+    "@open-zone/drivers": "*",
+    "@open-zone/shared": "*",
+    "fastify": "^5.12.8",
+    "zod": "^4.6.7"
+  }
+}
