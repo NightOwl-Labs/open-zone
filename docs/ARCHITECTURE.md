@@ -279,7 +279,7 @@ A single JSON file, by default `/var/lib/open-zone/config.json` (path can be ove
 
 - It is validated with zod when loaded, and carries a `schemaVersion` so it can be migrated later.
 - Writes are atomic: write to a temp file, fsync, then rename.
-- It holds the serial settings, poll intervals, zone names, source names and mirror groups.
+- It holds the home name, serial settings, poll intervals, zone and source names and enabled flags, and mirror groups. Display spacing (compact/normal/large) is a per-device preference kept in the browser, not in this file.
 
 SQLite would be over-engineered for a few KB of config. The `ConfigStore` interface means it can be swapped in later if history or scenes need it.
 
