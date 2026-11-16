@@ -61,6 +61,14 @@ const configPatch = z.object({
   polling: PollingConfigSchema.partial().optional(),
   queue: QueueConfigSchema.partial().optional(),
 });
+const sceneZone = z.object({ zone: z.number().int(), volume: z.number().int() });
+const sceneCreate = z.object({
+  name: z.string().max(40),
+  source: z.number().int(),
+  zones: z.array(sceneZone),
+  othersOff: z.boolean().optional(),
+});
+const sceneUpdate = sceneCreate.partial();
 const keypadBody = z.object({
   zone: z.number().int(),
   patch: z.record(z.string(), z.union([z.number(), z.boolean()])).optional(),
@@ -136,6 +144,24 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
       );
       api.put('/zones/:id/name', async (req) =>
         controller.renameZone(zoneParam.parse(req.params).id, nameBody.parse(req.body).name),
+      );
+
+      api.post('/zones/all-off', async () => controller.allOff());
+
+      api.get('/scenes', async () => controller.listScenes());
+      api.get('/scenes/:id', async (req) => controller.getScene(idParam.parse(req.params).id));
+      api.post('/scenes', async (req, reply) =>
+        reply.status(201).send(await controller.createScene(sceneCreate.parse(req.body))),
+      );
+      api.patch('/scenes/:id', async (req) =>
+        controller.updateScene(idParam.parse(req.params).id, sceneUpdate.parse(req.body)),
+      );
+      api.delete('/scenes/:id', async (req, reply) => {
+        await controller.deleteScene(idParam.parse(req.params).id);
+        return reply.status(204).send();
+      });
+      api.post('/scenes/:id/activate', async (req) =>
+        controller.activateScene(idParam.parse(req.params).id),
       );
 
       api.get('/sources', async () => controller.getSources());

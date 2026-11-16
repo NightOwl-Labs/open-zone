@@ -1,6 +1,7 @@
 import {
   DriverTimeoutError,
   PatchValidationError,
+  clampProp,
   PollingConfigSchema,
   QueueConfigSchema,
   isValidZone,
@@ -16,6 +17,8 @@ import {
   type DetachReason,
   type ControllerEvent,
   type MirrorGroup,
+  type ActivationResult,
+  type Scene,
   type ModelDescriptor,
   type PollingConfig,
   type QueueConfig,
@@ -68,6 +71,13 @@ export interface MirrorInput {
   enabled?: boolean | undefined;
   primary: ZoneId;
   followers: Array<ZoneId | { zone: ZoneId; volumeOffset?: number }>;
+}
+
+export interface SceneInput {
+  name: string;
+  source: SourceId;
+  zones: Array<{ zone: ZoneId; volume: number }>;
+  othersOff?: boolean | undefined;
 }
 
 export class NotConnectedError extends Error {
@@ -655,6 +665,163 @@ export class Controller {
     this.scheduler.update();
   }
 
+  // ───────────────────────────── all off & scenes ─────────────────────────────
+
+  /**
+   * Turn every enabled zone off right away. Power-off is sent even to zones
+   * the cache thinks are off (the cache may be stale when nothing polls).
+   * Mirror audits are suspended meanwhile so followers aren't detached.
+   */
+  async allOff(): Promise<ActivationResult> {
+    const zones = this.getZones()
+      .filter((z) => z.enabled)
+      .map((z) => z.zone);
+    const result = await this.whileSyncing(zones, async () => {
+      const applied: ZoneId[] = [];
+      // Primaries first, so followers see a consistent primary state.
+      const order = [...zones].sort(
+        (a, b) =>
+          Number(this.roleOf(b)?.role === 'primary') - Number(this.roleOf(a)?.role === 'primary'),
+      );
+      for (const zone of order) {
+        await this.writeZone(zone, { power: false }, 'api');
+        applied.push(zone);
+      }
+      return { applied, skipped: [] };
+    });
+    this.emit({ type: 'zones.allOff', ...result });
+    return result;
+  }
+
+  listScenes(): Scene[] {
+    return structuredClone(this.config.scenes);
+  }
+
+  getScene(id: string): Scene {
+    const scene = this.config.scenes.find((s) => s.id === id);
+    if (!scene) throw new NotFoundError(`scene ${id}`);
+    return structuredClone(scene);
+  }
+
+  async createScene(input: SceneInput): Promise<Scene> {
+    const scene = this.validateScene({ id: this.newId(), ...input });
+    await this.saveConfig({ ...this.config, scenes: [...this.config.scenes, scene] });
+    this.emit({ type: 'scene.updated', scene: structuredClone(scene) });
+    return structuredClone(scene);
+  }
+
+  async updateScene(id: string, input: Partial<SceneInput>): Promise<Scene> {
+    const current = this.getScene(id);
+    const scene = this.validateScene({ ...current, ...stripUndefined(input), id });
+    await this.saveConfig({
+      ...this.config,
+      scenes: this.config.scenes.map((s) => (s.id === id ? scene : s)),
+    });
+    this.emit({ type: 'scene.updated', scene: structuredClone(scene) });
+    return structuredClone(scene);
+  }
+
+  async deleteScene(id: string): Promise<void> {
+    this.getScene(id);
+    await this.saveConfig({
+      ...this.config,
+      scenes: this.config.scenes.filter((s) => s.id !== id),
+    });
+    this.emit({ type: 'scene.deleted', sceneId: id });
+  }
+
+  /**
+   * Apply a scene: each zone is powered on, switched to the scene's source,
+   * set to its preset volume and unmuted. Followers of active mirrors are
+   * skipped (they keep following their primary, offset included); disabled
+   * zones are skipped. With `othersOff`, every other enabled zone is turned off.
+   */
+  async activateScene(id: string): Promise<ActivationResult> {
+    const scene = this.getScene(id);
+    if (this.config.sources[String(scene.source)]?.enabled === false) {
+      throw new PatchValidationError([`source ${scene.source} is disabled`]);
+    }
+    const installed = new Set(this.getZones().map((z) => z.zone));
+    const skipped: ActivationResult['skipped'] = [];
+    const targets: Scene['zones'] = [];
+    for (const entry of scene.zones) {
+      const role = this.roleOf(entry.zone);
+      if (!installed.has(entry.zone)) skipped.push({ zone: entry.zone, reason: 'not installed' });
+      else if (!this.isZoneEnabled(entry.zone))
+        skipped.push({ zone: entry.zone, reason: 'disabled' });
+      else if (role?.role === 'follower' && role.group.enabled) {
+        skipped.push({ zone: entry.zone, reason: `follows zone ${role.group.primary}` });
+      } else targets.push(entry);
+    }
+    const inScene = new Set(scene.zones.map((z) => z.zone));
+    const others = scene.othersOff
+      ? [...installed].filter((z) => !inScene.has(z) && this.isZoneEnabled(z))
+      : [];
+    const applied: ZoneId[] = [];
+    await this.whileSyncing([...targets.map((t) => t.zone), ...others], async () => {
+      for (const { zone, volume } of targets) {
+        await this.writeZone(
+          zone,
+          {
+            power: true,
+            source: scene.source,
+            volume: clampProp(this.model, 'volume', volume),
+            mute: false,
+          },
+          'api',
+        );
+        applied.push(zone);
+      }
+      for (const zone of others) {
+        const role = this.roleOf(zone);
+        // Followers whose primary is in the scene follow it instead.
+        if (role?.role === 'follower' && role.group.enabled && inScene.has(role.group.primary))
+          continue;
+        await this.writeZone(zone, { power: false }, 'api');
+        applied.push(zone);
+      }
+    });
+    const result = { applied, skipped };
+    this.emit({ type: 'scene.activated', sceneId: id, ...result });
+    return result;
+  }
+
+  private validateScene(
+    scene: Omit<Scene, 'othersOff'> & { othersOff?: boolean | undefined },
+  ): Scene {
+    const issues: string[] = [];
+    const name = scene.name?.trim();
+    if (!name) issues.push('a scene needs a name');
+    if (
+      !Number.isInteger(scene.source) ||
+      scene.source < 1 ||
+      scene.source > this.model.sourceCount
+    ) {
+      issues.push(`source ${scene.source} does not exist`);
+    } else if (this.config.sources[String(scene.source)]?.enabled === false) {
+      issues.push(`source ${scene.source} is disabled`);
+    }
+    if (!scene.zones?.length) issues.push('a scene needs at least one zone');
+    const seen = new Set<ZoneId>();
+    const vol = this.model.properties.volume;
+    for (const { zone, volume } of scene.zones ?? []) {
+      if (!isValidZone(this.model, zone)) issues.push(`zone ${zone} does not exist`);
+      if (seen.has(zone)) issues.push(`zone ${zone} is listed twice`);
+      seen.add(zone);
+      if (!Number.isInteger(volume) || volume < vol.min || volume > vol.max) {
+        issues.push(`zone ${zone}: volume ${volume} outside ${vol.min}..${vol.max}`);
+      }
+    }
+    if (issues.length) throw new PatchValidationError(issues);
+    return {
+      id: scene.id,
+      name: name!,
+      source: scene.source,
+      zones: scene.zones.map(({ zone, volume }) => ({ zone, volume })),
+      othersOff: scene.othersOff ?? false,
+    };
+  }
+
   // ───────────────────────────── internals ─────────────────────────────
 
   private activeGroups(): MirrorGroup[] {
@@ -816,6 +983,10 @@ export class Controller {
   private emit(event: ControllerEvent): void {
     this.bus.emit(event);
   }
+}
+
+function stripUndefined<T extends object>(o: T): Partial<T> {
+  return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as Partial<T>;
 }
 
 function errorMessage(err: unknown): string {

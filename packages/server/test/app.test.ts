@@ -153,6 +153,27 @@ describe('REST API', () => {
     expect(bad.json().start_url).toBe('/');
   });
 
+  it('turns all zones off and manages scenes', async () => {
+    const { app, emulator } = await setup();
+    await json(app, 'PATCH', '/zones/13', { power: true });
+    const off = await json(app, 'POST', '/zones/all-off');
+    expect(off.json().applied).toContain(13);
+    expect(emulator.getZone(13).power).toBe(false);
+    const created = await json(app, 'POST', '/scenes', {
+      name: 'Dinner',
+      source: 2,
+      zones: [{ zone: 13, volume: 15 }],
+    });
+    expect(created.statusCode).toBe(201);
+    const id = created.json().id;
+    expect((await json(app, 'POST', `/scenes/${id}/activate`)).json().applied).toEqual([13]);
+    expect(emulator.getZone(13)).toMatchObject({ power: true, source: 2, volume: 15 });
+    expect(
+      (await json(app, 'POST', '/scenes', { name: 'Bad', source: 2, zones: [] })).statusCode,
+    ).toBe(400);
+    expect((await json(app, 'DELETE', `/scenes/${id}`)).statusCode).toBe(204);
+  });
+
   it('updates the home name', async () => {
     const { app } = await setup();
     const res = await json(app, 'PATCH', '/config', { home: { name: 'Lake House' } });

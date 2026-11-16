@@ -161,6 +161,124 @@ describe('Controller: zones that are off (10761 ignores their settings)', () => 
   });
 });
 
+describe('Controller: all off', () => {
+  it('turns every enabled zone off without detaching mirror followers', async () => {
+    const { ctl, amp, ofType } = await setup();
+    amp.pressKeypad(11, { power: true });
+    amp.pressKeypad(13, { power: true });
+    amp.pressKeypad(21, { power: true });
+    await ctl.createMirror({ primary: 11, followers: [12] });
+    await ctl.updateZone(26, { enabled: false });
+    amp.pressKeypad(26, { power: true }); // disabled zone: left alone
+    await ctl.whenIdle();
+    const result = await ctl.allOff();
+    await ctl.whenIdle();
+    for (const z of [11, 12, 13, 14, 15, 16, 21, 22, 23, 24, 25]) {
+      expect(amp.getZone(z).power).toBe(false);
+    }
+    expect(amp.getZone(26).power).toBe(true);
+    expect(result.applied[0]).toBe(11); // primaries first
+    expect(result.applied).not.toContain(26);
+    expect(ofType('mirror.followerDetached')).toHaveLength(0);
+    expect(ofType('zones.allOff')).toHaveLength(1);
+    expect(ctl.getMirror('g1').followers).toEqual([{ zone: 12, volumeOffset: 0 }]);
+  });
+});
+
+describe('Controller: scenes', () => {
+  it('creates, updates and deletes scenes with validation', async () => {
+    const { ctl, store } = await setup();
+    const scene = await ctl.createScene({
+      name: ' Dinner ',
+      source: 2,
+      zones: [
+        { zone: 11, volume: 18 },
+        { zone: 13, volume: 12 },
+      ],
+    });
+    expect(scene).toEqual({
+      id: 'g1',
+      name: 'Dinner',
+      source: 2,
+      zones: [
+        { zone: 11, volume: 18 },
+        { zone: 13, volume: 12 },
+      ],
+      othersOff: false,
+    });
+    expect(store.current.scenes).toHaveLength(1);
+    expect((await ctl.updateScene('g1', { othersOff: true })).othersOff).toBe(true);
+    await expect(
+      ctl.createScene({ name: 'x', source: 9, zones: [{ zone: 11, volume: 5 }] }),
+    ).rejects.toThrow(/source 9/);
+    await expect(
+      ctl.createScene({ name: 'x', source: 1, zones: [{ zone: 11, volume: 50 }] }),
+    ).rejects.toThrow(/volume 50/);
+    await expect(ctl.createScene({ name: 'x', source: 1, zones: [] })).rejects.toThrow(
+      /at least one zone/,
+    );
+    await expect(
+      ctl.createScene({ name: '', source: 1, zones: [{ zone: 11, volume: 5 }] }),
+    ).rejects.toThrow(/name/);
+    await ctl.deleteScene('g1');
+    expect(ctl.listScenes()).toEqual([]);
+  });
+
+  it('activates a scene with per-zone preset volumes and turns others off', async () => {
+    const { ctl, amp, ofType } = await setup();
+    amp.pressKeypad(15, { power: true });
+    const scene = await ctl.createScene({
+      name: 'Movie',
+      source: 3,
+      zones: [
+        { zone: 11, volume: 25 },
+        { zone: 12, volume: 10 },
+      ],
+      othersOff: true,
+    });
+    amp.pressKeypad(11, { mute: true });
+    const result = await ctl.activateScene(scene.id);
+    await ctl.whenIdle();
+    expect(amp.getZone(11)).toMatchObject({ power: true, source: 3, volume: 25, mute: false });
+    expect(amp.getZone(12)).toMatchObject({ power: true, source: 3, volume: 10 });
+    expect(amp.getZone(15).power).toBe(false);
+    expect(result.applied.slice(0, 2)).toEqual([11, 12]);
+    expect(ofType('scene.activated')[0]).toMatchObject({ sceneId: scene.id });
+  });
+
+  it('skips mirror followers (they follow their primary, offset included)', async () => {
+    const { ctl, amp, ofType } = await setup();
+    amp.pressKeypad(11, { power: true });
+    await ctl.createMirror({ primary: 11, followers: [{ zone: 12, volumeOffset: -3 }] });
+    await ctl.whenIdle();
+    const scene = await ctl.createScene({
+      name: 'Party',
+      source: 4,
+      zones: [
+        { zone: 11, volume: 30 },
+        { zone: 12, volume: 5 },
+      ],
+      othersOff: true,
+    });
+    const result = await ctl.activateScene(scene.id);
+    await ctl.whenIdle();
+    expect(result.skipped).toEqual([{ zone: 12, reason: 'follows zone 11' }]);
+    expect(amp.getZone(12)).toMatchObject({ power: true, source: 4, volume: 27 });
+    expect(ofType('mirror.followerDetached')).toHaveLength(0);
+  });
+
+  it('refuses to activate a scene whose source was disabled later', async () => {
+    const { ctl } = await setup();
+    const scene = await ctl.createScene({
+      name: 'Aux',
+      source: 5,
+      zones: [{ zone: 11, volume: 9 }],
+    });
+    await ctl.updateSource(5, { enabled: false });
+    await expect(ctl.activateScene(scene.id)).rejects.toThrow(/source 5 is disabled/);
+  });
+});
+
 describe('Controller: home settings', () => {
   it('stores and clears the home name, announcing config changes', async () => {
     const { ctl, store, ofType } = await setup();

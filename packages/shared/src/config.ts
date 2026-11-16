@@ -50,6 +50,22 @@ export const MirrorGroupSchema = z.object({
   followers: z.array(MirrorFollowerSchema).default([]),
 });
 
+export const SceneZoneSchema = z.object({
+  zone: z.number().int(),
+  /** Preset volume for this zone (zones can differ: stereo vs mono, 4 vs 8 ohm). */
+  volume: z.number().int().min(0),
+});
+
+export const SceneSchema = z.object({
+  id: z.string().min(1),
+  name,
+  /** Every zone in the scene is switched to this source. */
+  source: z.number().int().min(1),
+  zones: z.array(SceneZoneSchema).min(1),
+  /** Turn off every other (enabled) zone when the scene is activated. */
+  othersOff: z.boolean().default(false),
+});
+
 export const PollingConfigSchema = z.object({
   /** How often mirror primary zones are polled while any mirror is enabled. */
   mirrorPrimaryMs: z.number().int().min(100).default(500),
@@ -112,6 +128,7 @@ export const ConfigObjectSchema = z.object({
     )
     .default({}),
   mirrors: z.array(MirrorGroupSchema).default([]),
+  scenes: z.array(SceneSchema).default([]),
 });
 
 /**
@@ -161,6 +178,8 @@ export type HomeConfig = z.infer<typeof HomeConfigSchema>;
 export type TransportConfig = z.infer<typeof TransportConfigSchema>;
 export type MirrorFollower = z.infer<typeof MirrorFollowerSchema>;
 export type MirrorGroup = z.infer<typeof MirrorGroupSchema>;
+export type Scene = z.infer<typeof SceneSchema>;
+export type SceneZone = z.infer<typeof SceneZoneSchema>;
 export type PollingConfig = z.infer<typeof PollingConfigSchema>;
 export type QueueConfig = z.infer<typeof QueueConfigSchema>;
 export type Config = z.infer<typeof ConfigSchema>;
