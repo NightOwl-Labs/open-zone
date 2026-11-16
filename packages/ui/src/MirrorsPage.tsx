@@ -5,12 +5,53 @@ import { Icon, Sheet, Toggle } from './components.tsx';
 import { groupLabel, offsetLabel, zoneLabel } from './format.ts';
 import { errorText, run, useApp } from './store.ts';
 
+interface Child {
+  zone: number;
+  volumeOffset: number;
+}
+
+const MAX_OFFSET = 38;
+
+function OffsetStepper({
+  value,
+  onChange,
+  label,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  label: string;
+}) {
+  const set = (v: number) => onChange(Math.max(-MAX_OFFSET, Math.min(MAX_OFFSET, v)));
+  return (
+    <div className="stepper" role="group" aria-label={label}>
+      <button
+        type="button"
+        className="icon-btn"
+        aria-label="Quieter"
+        onClick={() => set(value - 1)}
+      >
+        −
+      </button>
+      <output aria-live="polite">
+        {value === 0 ? 'Same volume' : `${offsetLabel(value)} volume`}
+      </output>
+      <button type="button" className="icon-btn" aria-label="Louder" onClick={() => set(value + 1)}>
+        +
+      </button>
+    </div>
+  );
+}
+
 function MirrorEditor({ group, onClose }: { group: MirrorGroup | null; onClose: () => void }) {
   const zones = useApp((s) => s.zones);
   const mirrors = useApp((s) => s.mirrors);
   const [name, setName] = useState(group?.name ?? '');
   const [master, setMaster] = useState<number | null>(group?.master ?? null);
-  const [children, setChildren] = useState<number[]>(group?.children.map((c) => c.zone) ?? []);
+  const [children, setChildren] = useState<Child[]>(
+    group?.children.map((c) => ({ zone: c.zone, volumeOffset: c.volumeOffset })) ?? [],
+  );
+  const setOffset = (zone: number, volumeOffset: number) =>
+    setChildren((cs) => cs.map((c) => (c.zone === zone ? { ...c, volumeOffset } : c)));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -65,7 +106,7 @@ function MirrorEditor({ group, onClose }: { group: MirrorGroup | null; onClose: 
           onChange={(e) => {
             const m = Number(e.currentTarget.value);
             setMaster(m);
-            setChildren((c) => c.filter((x) => x !== m));
+            setChildren((cs) => cs.filter((c) => c.zone !== m));
           }}
         >
           <option value="" disabled>
@@ -82,14 +123,16 @@ function MirrorEditor({ group, onClose }: { group: MirrorGroup | null; onClose: 
         <span>Zones that follow it</span>
         <p className="muted-text small">
           Zones with a wall keypad can&apos;t follow another zone, since local changes would fight
-          the mirror.
+          the mirror. Use the offset to play a zone louder or quieter than the master (e.g. −4 for a
+          bedroom).
         </p>
         <ul className="check-list">
           {zones.map((z) => {
             const reason = childReason(z);
-            const checked = children.includes(z.zone);
+            const child = children.find((c) => c.zone === z.zone);
+            const checked = child !== undefined;
             return (
-              <li key={z.zone}>
+              <li key={z.zone} className={checked ? 'checked' : ''}>
                 <label className={reason && !checked ? 'disabled' : ''}>
                   <input
                     type="checkbox"
@@ -97,12 +140,23 @@ function MirrorEditor({ group, onClose }: { group: MirrorGroup | null; onClose: 
                     disabled={!!reason && !checked}
                     onChange={(e) => {
                       const on = e.currentTarget.checked;
-                      setChildren((c) => (on ? [...c, z.zone] : c.filter((x) => x !== z.zone)));
+                      setChildren((cs) =>
+                        on
+                          ? [...cs, { zone: z.zone, volumeOffset: 0 }]
+                          : cs.filter((c) => c.zone !== z.zone),
+                      );
                     }}
                   />
                   <span>{zoneLabel(z)}</span>
                   {reason && <span className="tag">{reason}</span>}
                 </label>
+                {child && (
+                  <OffsetStepper
+                    label={`${zoneLabel(z)} volume offset`}
+                    value={child.volumeOffset}
+                    onChange={(v) => setOffset(z.zone, v)}
+                  />
+                )}
               </li>
             );
           })}

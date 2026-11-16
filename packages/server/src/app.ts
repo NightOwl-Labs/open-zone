@@ -12,6 +12,7 @@ import {
 } from '@open-zone/core';
 import { listSerialPorts, type MonopriceEmulator } from '@open-zone/drivers';
 import {
+  MAX_VOLUME_OFFSET,
   PatchValidationError,
   PollingConfigSchema,
   QueueConfigSchema,
@@ -32,9 +33,15 @@ export interface AppOptions {
 const zoneParam = z.object({ id: z.coerce.number().int() });
 const idParam = z.object({ id: z.string().min(1) });
 const nameBody = z.object({ name: z.string().max(40).nullable() });
+const sourceBody = z
+  .object({ name: z.string().max(40).nullable().optional(), enabled: z.boolean().optional() })
+  .strict();
 const childInput = z.union([
   z.number().int(),
-  z.object({ zone: z.number().int(), volumeOffset: z.number().int().optional() }),
+  z.object({
+    zone: z.number().int(),
+    volumeOffset: z.number().int().min(-MAX_VOLUME_OFFSET).max(MAX_VOLUME_OFFSET).optional(),
+  }),
 ]);
 const mirrorCreate = z.object({
   name: z.string().max(40).optional(),
@@ -122,8 +129,11 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
       );
 
       api.get('/sources', async () => controller.getSources());
+      api.patch('/sources/:id', async (req) =>
+        controller.updateSource(zoneParam.parse(req.params).id, sourceBody.parse(req.body)),
+      );
       api.put('/sources/:id/name', async (req) =>
-        controller.renameSource(zoneParam.parse(req.params).id, nameBody.parse(req.body).name),
+        controller.updateSource(zoneParam.parse(req.params).id, nameBody.parse(req.body)),
       );
 
       api.get('/mirrors', async () => controller.listMirrors());

@@ -1,5 +1,6 @@
 import {
   DriverTimeoutError,
+  PatchValidationError,
   PollingConfigSchema,
   QueueConfigSchema,
   isValidZone,
@@ -296,6 +297,7 @@ export class Controller {
     return Array.from({ length: this.model.sourceCount }, (_, i) => ({
       source: i + 1,
       name: this.config.sources[String(i + 1)]?.name ?? null,
+      enabled: this.config.sources[String(i + 1)]?.enabled ?? true,
     }));
   }
 
@@ -347,6 +349,12 @@ export class Controller {
   async setZone(zone: ZoneId, patch: unknown): Promise<ZoneView> {
     this.assertInstalled(zone);
     const valid = validatePatch(this.model, patch);
+    if (
+      valid.source !== undefined &&
+      this.config.sources[String(valid.source)]?.enabled === false
+    ) {
+      throw new PatchValidationError([`source ${valid.source} is disabled`]);
+    }
     await this.writeZone(zone, valid, 'api');
     return this.zoneView(zone);
   }
@@ -362,17 +370,39 @@ export class Controller {
     return this.zoneView(zone);
   }
 
-  async renameSource(source: SourceId, name: string | null): Promise<SourceView> {
+  /** Rename and/or enable/disable a source. Pass `name: null` to clear the name. */
+  async updateSource(
+    source: SourceId,
+    input: { name?: string | null; enabled?: boolean },
+  ): Promise<SourceView> {
     if (!Number.isInteger(source) || source < 1 || source > this.model.sourceCount) {
       throw new NotFoundError(`source ${source}`);
     }
-    const trimmed = name?.trim() || null;
+    const key = String(source);
+    const current = this.config.sources[key] ?? { enabled: true };
+    const next: { name?: string; enabled: boolean } = { enabled: current.enabled };
+    const name = input.name === undefined ? current.name : input.name?.trim() || undefined;
+    if (name) next.name = name;
+    if (input.enabled !== undefined) next.enabled = input.enabled;
     const sources = { ...this.config.sources };
-    if (trimmed) sources[String(source)] = { name: trimmed };
-    else delete sources[String(source)];
+    if (next.name || !next.enabled) sources[key] = next;
+    else delete sources[key];
+    const enabledCount = Array.from(
+      { length: this.model.sourceCount },
+      (_, i) => sources[String(i + 1)]?.enabled ?? true,
+    ).filter(Boolean).length;
+    if (enabledCount === 0) {
+      throw new PatchValidationError(['at least one source must stay enabled']);
+    }
     await this.saveConfig({ ...this.config, sources });
-    this.emit({ type: 'source.renamed', source, name: trimmed });
-    return { source, name: trimmed };
+    const view = this.getSources()[source - 1]!;
+    this.emit({ type: 'source.updated', source: view });
+    return view;
+  }
+
+  /** @deprecated use updateSource */
+  async renameSource(source: SourceId, name: string | null): Promise<SourceView> {
+    return this.updateSource(source, { name });
   }
 
   async updateSettings(input: {

@@ -1,5 +1,6 @@
 import type { MirrorGroup } from './config.ts';
-import type { SourceId, ZoneId, ZonePatch, ZoneState } from './model.ts';
+import type { ZoneId, ZonePatch, ZoneState } from './model.ts';
+import type { SourceView } from './views.ts';
 
 /** What caused a state change. */
 export type ChangeOrigin =
@@ -24,7 +25,7 @@ export type ControllerEvent =
       origin: ChangeOrigin;
     }
   | { type: 'zone.renamed'; zone: ZoneId; name: string | null }
-  | { type: 'source.renamed'; source: SourceId; name: string | null }
+  | { type: 'source.updated'; source: SourceView }
   | { type: 'mirror.updated'; group: MirrorGroup }
   | { type: 'mirror.deleted'; groupId: string }
   | { type: 'mirror.offsetChanged'; groupId: string; zone: ZoneId; volumeOffset: number }

@@ -135,10 +135,10 @@ function handle(msg: ServerMessage): void {
       return patchZone(msg.zone, (z) => ({ ...z, state: msg.state, updatedAt: Date.now() }));
     case 'zone.renamed':
       return patchZone(msg.zone, (z) => ({ ...z, name: msg.name }));
-    case 'source.renamed':
+    case 'source.updated':
       return update((s) => ({
         ...s,
-        sources: s.sources.map((x) => (x.source === msg.source ? { ...x, name: msg.name } : x)),
+        sources: s.sources.map((x) => (x.source === msg.source.source ? msg.source : x)),
       }));
     case 'mirror.updated':
       return update((s) => ({

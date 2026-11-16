@@ -118,11 +118,45 @@ describe('Controller: zone commands and naming', () => {
     expect((await ctl.renameZone(11, '  Kitchen ')).name).toBe('Kitchen');
     await ctl.renameSource(2, 'Turntable');
     expect(store.current.zones['11']).toEqual({ name: 'Kitchen' });
-    expect(ctl.getSources()[1]).toEqual({ source: 2, name: 'Turntable' });
+    expect(ctl.getSources()[1]).toEqual({ source: 2, name: 'Turntable', enabled: true });
     await ctl.renameZone(11, '');
     expect(store.current.zones['11']).toBeUndefined();
     expect(ofType('zone.renamed').map((e) => e.name)).toEqual(['Kitchen', null]);
     await expect(ctl.renameSource(7, 'x')).rejects.toBeInstanceOf(NotFoundError);
+  });
+});
+
+describe('Controller: source enable/disable', () => {
+  it('disables sources, rejects them from the API, but lets mirrors and keypads use them', async () => {
+    const { ctl, amp, store, ofType } = await setup();
+    const v = await ctl.updateSource(4, { enabled: false });
+    expect(v).toEqual({ source: 4, name: null, enabled: false });
+    expect(store.current.sources['4']).toEqual({ enabled: false });
+    expect(ofType('source.updated')[0]?.source).toEqual(v);
+    await expect(ctl.setZone(11, { source: 4 })).rejects.toThrow(/source 4 is disabled/);
+    // A keypad picks the disabled source on a master: the mirror still follows.
+    amp.pressKeypad(11, { power: true });
+    await ctl.createMirror({ master: 11, children: [12] });
+    await ctl.whenIdle();
+    amp.pressKeypad(11, { source: 4 });
+    await vi.waitFor(() => expect(amp.getZone(12).source).toBe(4));
+  });
+
+  it('keeps the name when toggling and refuses to disable every source', async () => {
+    const { ctl } = await setup();
+    await ctl.updateSource(2, { name: 'Sonos' });
+    expect(await ctl.updateSource(2, { enabled: false })).toEqual({
+      source: 2,
+      name: 'Sonos',
+      enabled: false,
+    });
+    expect(await ctl.updateSource(2, { enabled: true })).toEqual({
+      source: 2,
+      name: 'Sonos',
+      enabled: true,
+    });
+    for (const s of [1, 2, 3, 4, 5]) await ctl.updateSource(s, { enabled: false });
+    await expect(ctl.updateSource(6, { enabled: false })).rejects.toThrow(/at least one source/);
   });
 });
 
@@ -242,6 +276,21 @@ describe('Controller: mirror propagation', () => {
         timeout: 1500,
       },
     );
+  });
+
+  it('applies a volume offset set in the mirror editor', async () => {
+    const { ctl, amp, store } = await mirrored();
+    await ctl.updateMirror('g1', { children: [{ zone: 12, volumeOffset: -6 }, 13] });
+    await ctl.whenIdle();
+    expect(amp.getZone(12).volume).toBe(14);
+    expect(amp.getZone(13).volume).toBe(20);
+    expect(store.current.mirrors[0]?.children).toEqual([
+      { zone: 12, volumeOffset: -6 },
+      { zone: 13, volumeOffset: 0 },
+    ]);
+    await ctl.setZone(11, { volume: 30 });
+    await ctl.whenIdle();
+    expect(amp.getZone(12).volume).toBe(24);
   });
 
   it('stops pushing when a group is disabled and resyncs when re-enabled', async () => {

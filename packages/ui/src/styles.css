@@ -746,3 +746,49 @@ input[type='range']::-moz-range-thumb {
 .toast.error {
   border-color: color-mix(in srgb, var(--bad) 50%, var(--line));
 }
+
+/* ───── mirror followers, offsets, sources ───── */
+
+.zone.following {
+  background: color-mix(in srgb, var(--surface) 70%, var(--bg));
+}
+
+.zone.following .zone-title .name {
+  color: var(--text-2);
+}
+
+.check-list li.checked {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 8px;
+}
+
+.check-list li.checked label {
+  border-bottom: 0;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 36px;
+}
+
+.stepper .icon-btn {
+  width: 36px;
+  height: 36px;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.stepper output {
+  min-width: 11ch;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.name-list li.off .text {
+  opacity: 0.5;
+}

@@ -135,15 +135,24 @@ function Names() {
         <div className="card-head">
           <h3>Sources</h3>
         </div>
+        <p className="muted-text small">
+          The amp can&apos;t tell which inputs have something plugged in. Turn off unused sources to
+          hide them from the zone source lists.
+        </p>
         <ul className="name-list">
           {sources.map((s) => (
-            <li key={s.source}>
+            <li key={s.source} className={s.enabled ? '' : 'off'}>
               <span className="idx">{s.source}</span>
               <NameInput
                 label={`Source ${s.source} name`}
                 value={s.name}
                 placeholder={sourceLabel([], s.source)}
-                onSave={(name) => void run(() => api.renameSource(s.source, name))}
+                onSave={(name) => void run(() => api.updateSource(s.source, { name }))}
+              />
+              <Toggle
+                label={`Source ${s.source} enabled`}
+                checked={s.enabled}
+                onChange={(enabled) => void run(() => api.updateSource(s.source, { enabled }))}
               />
             </li>
           ))}

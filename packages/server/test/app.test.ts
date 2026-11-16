@@ -73,8 +73,34 @@ describe('REST API', () => {
       'Kitchen',
     );
     await json(app, 'PUT', '/sources/3/name', { name: 'Vinyl' });
-    expect((await json(app, 'GET', '/sources')).json()[2]).toEqual({ source: 3, name: 'Vinyl' });
+    expect((await json(app, 'GET', '/sources')).json()[2]).toEqual({
+      source: 3,
+      name: 'Vinyl',
+      enabled: true,
+    });
     expect((await json(app, 'PUT', '/zones/11/name', { nope: 1 })).statusCode).toBe(400);
+  });
+
+  it('enables and disables sources', async () => {
+    const { app } = await setup();
+    const res = await json(app, 'PATCH', '/sources/5', { enabled: false, name: 'Aux' });
+    expect(res.json()).toEqual({ source: 5, name: 'Aux', enabled: false });
+    expect((await json(app, 'PATCH', '/zones/11', { source: 5 })).statusCode).toBe(400);
+    expect((await json(app, 'PATCH', '/sources/5', { bogus: 1 })).statusCode).toBe(400);
+  });
+
+  it('stores per-child volume offsets and bounds them', async () => {
+    const { app } = await setup();
+    const res = await json(app, 'POST', '/mirrors', {
+      master: 11,
+      children: [{ zone: 13, volumeOffset: 4 }],
+    });
+    expect(res.json().children).toEqual([{ zone: 13, volumeOffset: 4 }]);
+    const bad = await json(app, 'POST', '/mirrors', {
+      master: 14,
+      children: [{ zone: 15, volumeOffset: 50 }],
+    });
+    expect(bad.statusCode).toBe(400);
   });
 
   it('manages mirror groups, rejecting keypad children with 409', async () => {

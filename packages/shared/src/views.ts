@@ -18,6 +18,8 @@ export interface ZoneView {
 export interface SourceView {
   source: SourceId;
   name: string | null;
+  /** False when hidden from source pickers. The amp cannot report which inputs are connected. */
+  enabled: boolean;
 }
 
 export interface QueueStats {

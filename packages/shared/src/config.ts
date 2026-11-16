@@ -31,10 +31,15 @@ export const TransportConfigSchema = z.discriminatedUnion('type', [
   SimulatorTransportConfigSchema,
 ]);
 
+export const MAX_VOLUME_OFFSET = 38;
+
 export const MirrorChildSchema = z.object({
   zone: z.number().int(),
-  /** Child volume = clamp(master volume + offset). Learned from out-of-band volume changes. */
-  volumeOffset: z.number().int().default(0),
+  /**
+   * Child volume = clamp(master volume + offset). Set in the mirror editor, or
+   * learned when the child's volume is changed directly.
+   */
+  volumeOffset: z.number().int().min(-MAX_VOLUME_OFFSET).max(MAX_VOLUME_OFFSET).default(0),
 });
 
 export const MirrorGroupSchema = z.object({
@@ -78,7 +83,16 @@ export const ConfigSchema = z.object({
   polling: PollingConfigSchema.prefault({}),
   queue: QueueConfigSchema.prefault({}),
   zones: z.record(zoneKey, z.object({ name })).default({}),
-  sources: z.record(sourceKey, z.object({ name })).default({}),
+  sources: z
+    .record(
+      sourceKey,
+      z.object({
+        name: name.optional(),
+        /** Disabled sources are hidden from zone source pickers and rejected by the API. */
+        enabled: z.boolean().default(true),
+      }),
+    )
+    .default({}),
   mirrors: z.array(MirrorGroupSchema).default([]),
 });
 

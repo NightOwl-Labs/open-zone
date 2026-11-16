@@ -37,7 +37,7 @@ export interface MirrorInput {
   name?: string;
   enabled?: boolean;
   master?: number;
-  children?: number[];
+  children?: Array<{ zone: number; volumeOffset: number }>;
 }
 
 export interface Snapshot {
@@ -54,8 +54,8 @@ export const api = {
   setZone: (id: number, patch: ZonePatch) => request<ZoneView>('PATCH', `/zones/${id}`, patch),
   renameZone: (id: number, name: string | null) =>
     request<ZoneView>('PUT', `/zones/${id}/name`, { name }),
-  renameSource: (id: number, name: string | null) =>
-    request<SourceView>('PUT', `/sources/${id}/name`, { name }),
+  updateSource: (id: number, input: { name?: string | null; enabled?: boolean }) =>
+    request<SourceView>('PATCH', `/sources/${id}`, input),
   createMirror: (input: MirrorInput) => request<MirrorGroup>('POST', '/mirrors', input),
   updateMirror: (id: string, input: MirrorInput) =>
     request<MirrorGroup>('PATCH', `/mirrors/${id}`, input),
