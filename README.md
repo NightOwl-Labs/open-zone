@@ -63,8 +63,6 @@ cd open-zone
 ./scripts/install.sh                    # installs dependencies and builds the UI (a few minutes on a Pi 3)
 ```
 
-> Until the current pull requests are merged, the app lives on a branch. Run `git checkout feat/server-and-ui` before `./scripts/install.sh`.
-
 ### 4. Try it with the simulator (no amp needed)
 
 ```sh

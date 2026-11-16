@@ -18,7 +18,6 @@ This runs open-zone on the Pi with the **built-in emulator**, so you can try the
 ```sh
 git clone https://github.com/NightOwl-Labs/open-zone.git
 cd open-zone
-git checkout feat/server-and-ui     # until the PRs are merged to main
 ./scripts/install.sh
 ```
 
