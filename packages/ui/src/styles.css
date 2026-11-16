@@ -22,6 +22,12 @@
   --toggle-w: 52px;
   --toggle-h: 32px;
   --thumb: 26px;
+  --track: 8px;
+  --h1: 28px;
+  --control-font: 16px;
+  --value-size: 16px;
+  --badge-size: 12px;
+  --icon: 22px;
   --tabbar: 64px;
   font-family:
     system-ui,
@@ -99,25 +105,61 @@ button {
 }
 
 :root[data-density='compact'] {
-  --tap: 38px;
-  --card-pad: 10px;
-  --card-gap: 6px;
-  --name-size: 16px;
-  --sub-size: 13px;
-  --toggle-w: 44px;
-  --toggle-h: 26px;
-  --thumb: 22px;
+  --radius: 12px;
+  --tap: 34px;
+  --card-pad: 8px 12px;
+  --card-gap: 4px;
+  --name-size: 15px;
+  --sub-size: 12px;
+  --toggle-w: 40px;
+  --toggle-h: 24px;
+  --thumb: 20px;
+  --track: 6px;
+  --h1: 22px;
+  --control-font: 16px; /* never below 16px: iOS zooms into smaller inputs */
+  --value-size: 14px;
+  --badge-size: 11px;
+  --icon: 18px;
 }
 
 :root[data-density='large'] {
-  --tap: 54px;
-  --card-pad: 18px;
-  --card-gap: 14px;
-  --name-size: 21px;
-  --sub-size: 16px;
-  --toggle-w: 62px;
-  --toggle-h: 38px;
-  --thumb: 32px;
+  --radius: 22px;
+  --tap: 64px;
+  --card-pad: 22px;
+  --card-gap: 18px;
+  --name-size: 26px;
+  --sub-size: 19px;
+  --toggle-w: 76px;
+  --toggle-h: 46px;
+  --thumb: 40px;
+  --track: 14px;
+  --h1: 38px;
+  --control-font: 21px;
+  --value-size: 24px;
+  --badge-size: 15px;
+  --icon: 30px;
+}
+
+/* Compact: source picker and volume share one row so more zones fit. */
+:root[data-density='compact'] .zone-body {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+:root[data-density='compact'] .zone-body .select {
+  flex: 0 0 38%;
+  min-width: 0;
+}
+
+:root[data-density='compact'] .zone-body .vol-row {
+  flex: 1;
+  min-width: 0;
+  gap: 4px;
+}
+
+:root[data-density='compact'] .zone-head .badge {
+  margin-top: 2px;
 }
 
 .titles {
@@ -161,7 +203,7 @@ button {
 
 .top h1 {
   margin: 0;
-  font-size: 28px;
+  font-size: var(--h1);
   font-weight: 700;
   letter-spacing: -0.02em;
 }
@@ -228,13 +270,18 @@ button {
   font-weight: 600;
 }
 
+.tabs .icon {
+  width: 22px;
+  height: 22px;
+}
+
 .tabs button.active {
   color: var(--accent);
 }
 
 .icon {
-  width: 22px;
-  height: 22px;
+  width: var(--icon);
+  height: var(--icon);
   flex: none;
 }
 
@@ -332,15 +379,15 @@ button {
   margin-top: 4px;
   padding: 2px 8px 2px 6px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: var(--badge-size);
   font-weight: 600;
   background: color-mix(in srgb, var(--accent) 16%, transparent);
   color: var(--accent);
 }
 
 .badge .icon {
-  width: 14px;
-  height: 14px;
+  width: calc(var(--badge-size) + 2px);
+  height: calc(var(--badge-size) + 2px);
 }
 
 .badge.primary {
@@ -400,7 +447,7 @@ button {
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--surface-2);
-  font-size: 16px; /* 16px stops iOS zooming on focus */
+  font-size: var(--control-font); /* ≥16px stops iOS zooming on focus */
 }
 
 .select {
@@ -457,6 +504,7 @@ button {
   min-width: 2.5ch;
   text-align: right;
   font-variant-numeric: tabular-nums;
+  font-size: var(--value-size);
   font-weight: 650;
 }
 
@@ -471,19 +519,19 @@ input[type='range'] {
 }
 
 input[type='range']::-webkit-slider-runnable-track {
-  height: 8px;
+  height: var(--track);
   border-radius: 999px;
   background: linear-gradient(to right, var(--accent) var(--pct), var(--surface-2) var(--pct));
 }
 
 input[type='range']::-moz-range-track {
-  height: 8px;
+  height: var(--track);
   border-radius: 999px;
   background: var(--surface-2);
 }
 
 input[type='range']::-moz-range-progress {
-  height: 8px;
+  height: var(--track);
   border-radius: 999px;
   background: var(--accent);
 }
@@ -492,7 +540,7 @@ input[type='range']::-webkit-slider-thumb {
   appearance: none;
   width: var(--thumb);
   height: var(--thumb);
-  margin-top: calc((8px - var(--thumb)) / 2);
+  margin-top: calc((var(--track) - var(--thumb)) / 2);
   border-radius: 50%;
   background: #fff;
   box-shadow: 0 1px 4px rgb(0 0 0 / 0.4);
