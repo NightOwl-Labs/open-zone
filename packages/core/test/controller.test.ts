@@ -117,12 +117,51 @@ describe('Controller: zone commands and naming', () => {
     const { ctl, store, ofType } = await setup();
     expect((await ctl.renameZone(11, '  Kitchen ')).name).toBe('Kitchen');
     await ctl.renameSource(2, 'Turntable');
-    expect(store.current.zones['11']).toEqual({ name: 'Kitchen' });
+    expect(store.current.zones['11']).toEqual({ name: 'Kitchen', enabled: true });
     expect(ctl.getSources()[1]).toEqual({ source: 2, name: 'Turntable', enabled: true });
     await ctl.renameZone(11, '');
     expect(store.current.zones['11']).toBeUndefined();
-    expect(ofType('zone.renamed').map((e) => e.name)).toEqual(['Kitchen', null]);
+    expect(ofType('zone.updated').map((e) => e.name)).toEqual(['Kitchen', null]);
     await expect(ctl.renameSource(7, 'x')).rejects.toBeInstanceOf(NotFoundError);
+  });
+});
+
+describe('Controller: zone enable/disable', () => {
+  it('disables unused zones, keeps names, and rejects commands to them', async () => {
+    const { ctl, store, ofType } = await setup();
+    await ctl.updateZone(15, { name: 'Garage' });
+    const v = await ctl.updateZone(15, { enabled: false });
+    expect(v).toMatchObject({ zone: 15, name: 'Garage', enabled: false });
+    expect(store.current.zones['15']).toEqual({ name: 'Garage', enabled: false });
+    expect(ofType('zone.updated').at(-1)).toEqual({
+      type: 'zone.updated',
+      zone: 15,
+      name: 'Garage',
+      enabled: false,
+    });
+    await expect(ctl.setZone(15, { power: true })).rejects.toThrow(/zone 15 is disabled/);
+    expect(ctl.getZones().find((z) => z.zone === 15)?.enabled).toBe(false);
+    await ctl.updateZone(15, { enabled: true });
+    await expect(ctl.setZone(15, { power: true })).resolves.toMatchObject({ enabled: true });
+  });
+
+  it('keeps disabled zones out of mirrors and mirrored zones from being disabled', async () => {
+    const { ctl } = await setup();
+    await ctl.updateZone(14, { enabled: false });
+    await expect(ctl.createMirror({ primary: 11, followers: [14] })).rejects.toThrow(
+      /14 is disabled/,
+    );
+    await expect(ctl.createMirror({ primary: 14, followers: [12] })).rejects.toThrow(
+      /14 is disabled/,
+    );
+    await ctl.createMirror({ primary: 11, followers: [12] });
+    await expect(ctl.updateZone(12, { enabled: false })).rejects.toThrow(
+      /remove it from the mirror/,
+    );
+    await expect(ctl.updateZone(11, { enabled: false })).rejects.toThrow(
+      /remove it from the mirror/,
+    );
+    await expect(ctl.updateZone(12, { name: 'Den' })).resolves.toMatchObject({ name: 'Den' });
   });
 });
 

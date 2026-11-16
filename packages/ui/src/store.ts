@@ -133,8 +133,8 @@ function handle(msg: ServerMessage): void {
       return applySnapshot(msg);
     case 'zone.changed':
       return patchZone(msg.zone, (z) => ({ ...z, state: msg.state, updatedAt: Date.now() }));
-    case 'zone.renamed':
-      return patchZone(msg.zone, (z) => ({ ...z, name: msg.name }));
+    case 'zone.updated':
+      return patchZone(msg.zone, (z) => ({ ...z, name: msg.name, enabled: msg.enabled }));
     case 'source.updated':
       return update((s) => ({
         ...s,

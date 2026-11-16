@@ -48,7 +48,7 @@ function Simulator() {
   const zones = useApp((s) => s.zones);
   const sources = useApp((s) => s.sources);
   const [zone, setZone] = useState<number | null>(null);
-  const z = zones.find((x) => x.zone === zone) ?? zones[0];
+  const z = zones.find((x) => x.zone === zone && x.enabled) ?? zones.find((x) => x.enabled);
   if (!z) return null;
   const s = z.state;
   const press = (body: Parameters<typeof api.simulateKeypad>[1]) =>
@@ -71,11 +71,13 @@ function Simulator() {
         value={z.zone}
         onChange={(e) => setZone(Number(e.currentTarget.value))}
       >
-        {zones.map((x) => (
-          <option key={x.zone} value={x.zone}>
-            {zoneLabel(x)}
-          </option>
-        ))}
+        {zones
+          .filter((x) => x.enabled)
+          .map((x) => (
+            <option key={x.zone} value={x.zone}>
+              {zoneLabel(x)}
+            </option>
+          ))}
       </select>
       {s && (
         <>
@@ -162,15 +164,24 @@ function Names() {
         <div className="card-head">
           <h3>Zones</h3>
         </div>
+        <p className="muted-text small">
+          Units are detected automatically, but each one always reports 6 zones. Turn off zones with
+          no speakers to hide them. A zone in a mirror must be removed from it first.
+        </p>
         <ul className="name-list">
           {zones.map((z) => (
-            <li key={z.zone}>
+            <li key={z.zone} className={z.enabled ? '' : 'off'}>
               <span className="idx">{z.zone}</span>
               <NameInput
                 label={`Zone ${z.zone} name`}
                 value={z.name}
                 placeholder={`Zone ${z.zone}`}
-                onSave={(name) => void run(() => api.renameZone(z.zone, name))}
+                onSave={(name) => void run(() => api.updateZone(z.zone, { name }))}
+              />
+              <Toggle
+                label={`Zone ${z.zone} enabled`}
+                checked={z.enabled}
+                onChange={(enabled) => void run(() => api.updateZone(z.zone, { enabled }))}
               />
             </li>
           ))}

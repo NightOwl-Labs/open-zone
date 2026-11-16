@@ -8,21 +8,22 @@ Status: draft, 2026-11-15.
 
 ## 1. Requirements
 
-| #   | Requirement                                                                                                                                                                                                                                          | Source |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| R1  | Up to 18 zones (3 stacked 10761 units) over **one** serial port. Expansion units (2 and 3) are chained to unit 1, the main unit. Sources are shared.                                                                                                 | user   |
-| R2  | Any UI can poll the state of every zone, change a zone's settings, and have the changes pushed to the hardware.                                                                                                                                      | user   |
-| R3  | Mirroring: one primary zone drives one or more follower zones. **All** settings are mirrored.                                                                                                                                                        | user   |
-| R4  | A follower zone must have **no keypad**. This is checked when the mirror is set up. As a backup, an out-of-band change to a follower is handled this way: a volume change becomes an offset, and any other change breaks the zone out of the mirror. | user   |
-| R5  | A change the API makes to a primary is sent to its followers right away. The cache is updated so the next poll finds nothing to do.                                                                                                                  | user   |
-| R6  | Mirror poll interval is configurable, starting at 500 ms. Adaptive timing may come later.                                                                                                                                                            | user   |
-| R7  | After a power loss the service recovers on its own. Background polling happens **only if a mirror is enabled**. Otherwise state is synced only while a user is interacting.                                                                          | user   |
-| R8  | Phone-first browser UI that can later be packaged as an iOS or Android app.                                                                                                                                                                          | user   |
-| R9  | Config, including zone and source naming and mirror groups, is done from the UI. Storage stays lightweight.                                                                                                                                          | user   |
-| R9a | The amp cannot report which source inputs are connected, so sources can be disabled. Disabled sources are hidden from zone pickers and rejected by the API, though keypads and mirrors may still select them.                                        | user   |
-| R9b | A zone following an active mirror shows no controls of its own, only what it follows. Each follower has a volume offset that can be set in the mirror editor (±38) or learned from a direct volume change.                                           | user   |
-| R10 | Other multi-zone amp models can be added later. Integrations (MQTT, Home Assistant) and auth can be added later **without changing core decisions**.                                                                                                 | user   |
-| R11 | Local network only, no auth in v1. No user roles, ever.                                                                                                                                                                                              | user   |
+| #   | Requirement                                                                                                                                                                                                                                                                                                                          | Source |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------ |
+| R1  | Up to 18 zones (3 stacked 10761 units) over **one** serial port. Expansion units (2 and 3) are chained to unit 1, the main unit. Sources are shared.                                                                                                                                                                                 | user   |
+| R2  | Any UI can poll the state of every zone, change a zone's settings, and have the changes pushed to the hardware.                                                                                                                                                                                                                      | user   |
+| R3  | Mirroring: one primary zone drives one or more follower zones. **All** settings are mirrored.                                                                                                                                                                                                                                        | user   |
+| R4  | A follower zone must have **no keypad**. This is checked when the mirror is set up. As a backup, an out-of-band change to a follower is handled this way: a volume change becomes an offset, and any other change breaks the zone out of the mirror.                                                                                 | user   |
+| R5  | A change the API makes to a primary is sent to its followers right away. The cache is updated so the next poll finds nothing to do.                                                                                                                                                                                                  | user   |
+| R6  | Mirror poll interval is configurable, starting at 500 ms. Adaptive timing may come later.                                                                                                                                                                                                                                            | user   |
+| R7  | After a power loss the service recovers on its own. Background polling happens **only if a mirror is enabled**. Otherwise state is synced only while a user is interacting.                                                                                                                                                          | user   |
+| R8  | Phone-first browser UI that can later be packaged as an iOS or Android app.                                                                                                                                                                                                                                                          | user   |
+| R9  | Config, including zone and source naming and mirror groups, is done from the UI. Storage stays lightweight.                                                                                                                                                                                                                          | user   |
+| R9a | The amp cannot report which source inputs are connected, so sources can be disabled. Disabled sources are hidden from zone pickers and rejected by the API, though keypads and mirrors may still select them.                                                                                                                        | user   |
+| R9b | A zone following an active mirror shows no controls of its own, only what it follows. Each follower has a volume offset that can be set in the mirror editor (±38) or learned from a direct volume change.                                                                                                                           | user   |
+| R9c | Units are auto-detected (a unit is present if its first zone answers). Zones are not: every unit reports 6 zones whether or not speakers are wired. Zones can therefore be disabled, which hides them, rejects commands to them and keeps them out of mirrors. A zone in a mirror must be removed from it before it can be disabled. | user   |
+| R10 | Other multi-zone amp models can be added later. Integrations (MQTT, Home Assistant) and auth can be added later **without changing core decisions**.                                                                                                                                                                                 | user   |
+| R11 | Local network only, no auth in v1. No user roles, ever.                                                                                                                                                                                                                                                                              | user   |
 
 ---
 
@@ -251,23 +252,23 @@ The cache is **not** persisted, because the amp is the source of truth. Only con
 
 All JSON. Schemas come from the shared zod package and are published as OpenAPI at `/api/v1/docs`.
 
-| Method         | Path                      | Purpose                                                                                                  |
-| -------------- | ------------------------- | -------------------------------------------------------------------------------------------------------- |
-| GET            | `/api/v1/system`          | Model descriptor, installed units, connection status, queue RTT                                          |
-| POST           | `/api/v1/system/discover` | Re-detect stacked units                                                                                  |
-| GET            | `/api/v1/zones`           | All zones: state, name, mirror role                                                                      |
-| GET            | `/api/v1/zones/:id`       | One zone                                                                                                 |
-| PATCH          | `/api/v1/zones/:id`       | Partial update `{ volume?, source?, power?, … }`                                                         |
-| PUT            | `/api/v1/zones/:id/name`  | Rename a zone                                                                                            |
-| GET            | `/api/v1/sources`         | Shared sources (1–6) with names and enabled flags                                                        |
-| PATCH          | `/api/v1/sources/:id`     | `{ name?, enabled? }`: rename, or hide an unused source from pickers (the API then rejects selecting it) |
-| GET / POST     | `/api/v1/mirrors`         | List or create mirror groups                                                                             |
-| PATCH / DELETE | `/api/v1/mirrors/:id`     | Edit, enable/disable, or delete a group                                                                  |
-| GET / PATCH    | `/api/v1/config`          | Serial port, baud, poll intervals                                                                        |
-| GET            | `/api/v1/serial-ports`    | List candidate ports for the settings UI                                                                 |
-| WS             | `/api/v1/events`          | Sends a snapshot on connect, then events                                                                 |
+| Method         | Path                       | Purpose                                                                                                  |
+| -------------- | -------------------------- | -------------------------------------------------------------------------------------------------------- |
+| GET            | `/api/v1/system`           | Model descriptor, installed units, connection status, queue RTT                                          |
+| POST           | `/api/v1/system/discover`  | Re-detect stacked units                                                                                  |
+| GET            | `/api/v1/zones`            | All zones: state, name, mirror role                                                                      |
+| GET            | `/api/v1/zones/:id`        | One zone                                                                                                 |
+| PATCH          | `/api/v1/zones/:id`        | Partial update `{ volume?, source?, power?, … }`                                                         |
+| PATCH          | `/api/v1/zones/:id/config` | `{ name?, enabled? }`: rename, or disable an unused zone                                                 |
+| GET            | `/api/v1/sources`          | Shared sources (1–6) with names and enabled flags                                                        |
+| PATCH          | `/api/v1/sources/:id`      | `{ name?, enabled? }`: rename, or hide an unused source from pickers (the API then rejects selecting it) |
+| GET / POST     | `/api/v1/mirrors`          | List or create mirror groups                                                                             |
+| PATCH / DELETE | `/api/v1/mirrors/:id`      | Edit, enable/disable, or delete a group                                                                  |
+| GET / PATCH    | `/api/v1/config`           | Serial port, baud, poll intervals                                                                        |
+| GET            | `/api/v1/serial-ports`     | List candidate ports for the settings UI                                                                 |
+| WS             | `/api/v1/events`           | Sends a snapshot on connect, then events                                                                 |
 
-**WebSocket events:** `snapshot`, `zone.changed` (diff only), `zone.renamed`, `source.updated`, `mirror.updated`, `mirror.offsetChanged`, `mirror.followerDetached`, `connection.changed`, `command.failed`.
+**WebSocket events:** `snapshot`, `zone.changed` (diff only), `zone.updated`, `source.updated`, `mirror.updated`, `mirror.offsetChanged`, `mirror.followerDetached`, `connection.changed`, `command.failed`.
 Commands go through REST and the WebSocket only pushes. This keeps the API simple to call from curl, scripts and future integrations.
 
 ---

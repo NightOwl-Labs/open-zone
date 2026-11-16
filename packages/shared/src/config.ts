@@ -82,7 +82,19 @@ export const ConfigObjectSchema = z.object({
     .prefault({}),
   polling: PollingConfigSchema.prefault({}),
   queue: QueueConfigSchema.prefault({}),
-  zones: z.record(zoneKey, z.object({ name })).default({}),
+  zones: z
+    .record(
+      zoneKey,
+      z.object({
+        name: name.optional(),
+        /**
+         * Disabled zones (no speakers wired) are hidden from the UI, rejected by
+         * the API and cannot join mirrors. The amp always reports 6 zones per unit.
+         */
+        enabled: z.boolean().default(true),
+      }),
+    )
+    .default({}),
   sources: z
     .record(
       sourceKey,

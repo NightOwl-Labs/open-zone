@@ -61,7 +61,9 @@ function MirrorEditor({ group, onClose }: { group: MirrorGroup | null; onClose: 
       (g) => g.id !== group?.id && (g.primary === zone || g.followers.some((c) => c.zone === zone)),
     );
 
-  const primaryOptions = zones.filter((z) => !takenBy(z.zone));
+  // Zones turned off in Settings can't take part in mirrors.
+  const usable = zones.filter((z) => z.enabled);
+  const primaryOptions = usable.filter((z) => !takenBy(z.zone));
   const followerReason = (z: ZoneView): string | null => {
     if (z.zone === primary) return 'primary';
     const g = takenBy(z.zone);
@@ -127,7 +129,7 @@ function MirrorEditor({ group, onClose }: { group: MirrorGroup | null; onClose: 
           a bedroom).
         </p>
         <ul className="check-list">
-          {zones.map((z) => {
+          {usable.map((z) => {
             const reason = followerReason(z);
             const follower = followers.find((c) => c.zone === z.zone);
             const checked = follower !== undefined;

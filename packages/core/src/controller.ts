@@ -306,6 +306,7 @@ export class Controller {
     return {
       zone,
       name: this.config.zones[String(zone)]?.name ?? null,
+      enabled: this.isZoneEnabled(zone),
       state: this.cache.get(zone) ?? null,
       updatedAt: this.cache.updatedAt(zone),
       mirror: !role
@@ -348,6 +349,9 @@ export class Controller {
    */
   async setZone(zone: ZoneId, patch: unknown): Promise<ZoneView> {
     this.assertInstalled(zone);
+    if (!this.isZoneEnabled(zone)) {
+      throw new PatchValidationError([`zone ${zone} is disabled`]);
+    }
     const valid = validatePatch(this.model, patch);
     if (
       valid.source !== undefined &&
@@ -359,15 +363,41 @@ export class Controller {
     return this.zoneView(zone);
   }
 
-  async renameZone(zone: ZoneId, name: string | null): Promise<ZoneView> {
+  /** Rename and/or enable/disable a zone. Pass `name: null` to clear the name. */
+  async updateZone(
+    zone: ZoneId,
+    input: { name?: string | null; enabled?: boolean },
+  ): Promise<ZoneView> {
     if (!isValidZone(this.model, zone)) throw new NotFoundError(`zone ${zone}`);
-    const trimmed = name?.trim() || null;
+    const key = String(zone);
+    const current = this.config.zones[key] ?? { enabled: true };
+    const next: { name?: string; enabled: boolean } = { enabled: current.enabled };
+    const name = input.name === undefined ? current.name : input.name?.trim() || undefined;
+    if (name) next.name = name;
+    if (input.enabled !== undefined) next.enabled = input.enabled;
+    if (!next.enabled && current.enabled) {
+      const role = this.roleOf(zone);
+      if (role) {
+        throw new MirrorValidationError([
+          `zone ${zone} is in mirror group ${role.group.name ?? role.group.id}; remove it from the mirror first`,
+        ]);
+      }
+    }
     const zones = { ...this.config.zones };
-    if (trimmed) zones[String(zone)] = { name: trimmed };
-    else delete zones[String(zone)];
+    if (next.name || !next.enabled) zones[key] = next;
+    else delete zones[key];
     await this.saveConfig({ ...this.config, zones });
-    this.emit({ type: 'zone.renamed', zone, name: trimmed });
+    this.emit({ type: 'zone.updated', zone, name: next.name ?? null, enabled: next.enabled });
     return this.zoneView(zone);
+  }
+
+  /** @deprecated use updateZone */
+  async renameZone(zone: ZoneId, name: string | null): Promise<ZoneView> {
+    return this.updateZone(zone, { name });
+  }
+
+  private isZoneEnabled(zone: ZoneId): boolean {
+    return this.config.zones[String(zone)]?.enabled ?? true;
   }
 
   /** Rename and/or enable/disable a source. Pass `name: null` to clear the name. */
@@ -489,6 +519,9 @@ export class Controller {
 
   private async validateGroup(group: MirrorGroup): Promise<void> {
     const issues = validateGroupShape(this.model, this.units, group, this.config.mirrors);
+    for (const zone of [group.primary, ...group.followers.map((f) => f.zone)]) {
+      if (!this.isZoneEnabled(zone)) issues.push(`zone ${zone} is disabled`);
+    }
     if (issues.length === 0) {
       // Followers must not have keypads: read them fresh from the hardware.
       for (const follower of group.followers) {

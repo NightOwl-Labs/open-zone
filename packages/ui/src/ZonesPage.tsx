@@ -239,7 +239,7 @@ function ZoneDetail({ zone, onClose }: { zone: number; onClose: () => void }) {
           label="Zone name"
           value={z.name}
           placeholder={`Zone ${z.zone}`}
-          onSave={(name) => void run(() => api.renameZone(z.zone, name))}
+          onSave={(name) => void run(() => api.updateZone(z.zone, { name }))}
         />
       </div>
       <dl className="facts">
@@ -276,8 +276,17 @@ export function ZonesPage({
   onOpen: (zone: number) => void;
   onClose: () => void;
 }) {
-  const zones = useApp((s) => s.zones);
+  const allZones = useApp((s) => s.zones);
   const system = useApp((s) => s.system);
+  const zones = allZones.filter((z) => z.enabled);
+  if (allZones.length > 0 && zones.length === 0) {
+    return (
+      <div className="empty">
+        <p>All zones are turned off.</p>
+        <p className="muted-text">Turn on the zones you use in Settings → Zones.</p>
+      </div>
+    );
+  }
   if (zones.length === 0) {
     return (
       <div className="empty">

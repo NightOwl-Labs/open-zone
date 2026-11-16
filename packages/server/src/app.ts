@@ -33,6 +33,9 @@ export interface AppOptions {
 const zoneParam = z.object({ id: z.coerce.number().int() });
 const idParam = z.object({ id: z.string().min(1) });
 const nameBody = z.object({ name: z.string().max(40).nullable() });
+const configBody = z
+  .object({ name: z.string().max(40).nullable().optional(), enabled: z.boolean().optional() })
+  .strict();
 const sourceBody = z
   .object({ name: z.string().max(40).nullable().optional(), enabled: z.boolean().optional() })
   .strict();
@@ -123,6 +126,9 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
       );
       api.post('/zones/:id/refresh', async (req) =>
         controller.refreshZone(zoneParam.parse(req.params).id, 'high'),
+      );
+      api.patch('/zones/:id/config', async (req) =>
+        controller.updateZone(zoneParam.parse(req.params).id, configBody.parse(req.body)),
       );
       api.put('/zones/:id/name', async (req) =>
         controller.renameZone(zoneParam.parse(req.params).id, nameBody.parse(req.body).name),

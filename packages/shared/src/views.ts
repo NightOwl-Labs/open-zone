@@ -9,6 +9,8 @@ export type MirrorRole =
 export interface ZoneView {
   zone: ZoneId;
   name: string | null;
+  /** False for zones marked unused (no speakers). Hidden from controls. */
+  enabled: boolean;
   /** Last known hardware state; null until the zone has been read. */
   state: ZoneState | null;
   /** Epoch ms of the last successful read or acknowledged write. */

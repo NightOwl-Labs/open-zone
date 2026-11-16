@@ -81,6 +81,15 @@ describe('REST API', () => {
     expect((await json(app, 'PUT', '/zones/11/name', { nope: 1 })).statusCode).toBe(400);
   });
 
+  it('enables and disables zones', async () => {
+    const { app } = await setup();
+    const res = await json(app, 'PATCH', '/zones/16/config', { enabled: false });
+    expect(res.json()).toMatchObject({ zone: 16, enabled: false });
+    expect((await json(app, 'PATCH', '/zones/16', { power: true })).statusCode).toBe(400);
+    await json(app, 'POST', '/mirrors', { primary: 13, followers: [14] });
+    expect((await json(app, 'PATCH', '/zones/14/config', { enabled: false })).statusCode).toBe(409);
+  });
+
   it('enables and disables sources', async () => {
     const { app } = await setup();
     const res = await json(app, 'PATCH', '/sources/5', { enabled: false, name: 'Aux' });
@@ -174,7 +183,7 @@ describe('JsonFileConfigStore', () => {
     const store = new JsonFileConfigStore(join(dir, 'nested', 'config.json'));
     const config = await store.load();
     expect(config.mirrors).toEqual([]);
-    await store.save({ ...config, zones: { '11': { name: 'Patio' } } });
+    await store.save({ ...config, zones: { '11': { name: 'Patio', enabled: true } } });
     const onDisk = JSON.parse(await readFile(store.path, 'utf8'));
     expect(onDisk.zones['11'].name).toBe('Patio');
     expect((await new JsonFileConfigStore(store.path).load()).zones['11']?.name).toBe('Patio');

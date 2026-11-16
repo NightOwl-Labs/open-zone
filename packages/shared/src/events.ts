@@ -24,7 +24,7 @@ export type ControllerEvent =
       state: ZoneState;
       origin: ChangeOrigin;
     }
-  | { type: 'zone.renamed'; zone: ZoneId; name: string | null }
+  | { type: 'zone.updated'; zone: ZoneId; name: string | null; enabled: boolean }
   | { type: 'source.updated'; source: SourceView }
   | { type: 'mirror.updated'; group: MirrorGroup }
   | { type: 'mirror.deleted'; groupId: string }

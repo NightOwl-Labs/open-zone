@@ -52,8 +52,8 @@ export const api = {
   snapshot: () => request<Snapshot>('GET', '/snapshot'),
   zone: (id: number) => request<ZoneView>('GET', `/zones/${id}`),
   setZone: (id: number, patch: ZonePatch) => request<ZoneView>('PATCH', `/zones/${id}`, patch),
-  renameZone: (id: number, name: string | null) =>
-    request<ZoneView>('PUT', `/zones/${id}/name`, { name }),
+  updateZone: (id: number, input: { name?: string | null; enabled?: boolean }) =>
+    request<ZoneView>('PATCH', `/zones/${id}/config`, input),
   updateSource: (id: number, input: { name?: string | null; enabled?: boolean }) =>
     request<SourceView>('PATCH', `/sources/${id}`, input),
   createMirror: (input: MirrorInput) => request<MirrorGroup>('POST', '/mirrors', input),
