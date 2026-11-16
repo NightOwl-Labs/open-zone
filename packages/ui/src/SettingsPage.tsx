@@ -29,7 +29,7 @@ function Connection() {
         </dd>
         <dt>Polling</dt>
         <dd>
-          {system.polling.mirrorActive ? 'mirror masters' : 'no mirrors'} ·{' '}
+          {system.polling.mirrorActive ? 'mirror primaries' : 'no mirrors'} ·{' '}
           {system.polling.interactiveClients} open{' '}
           {system.polling.interactiveClients === 1 ? 'screen' : 'screens'}
         </dd>
@@ -62,7 +62,7 @@ function Simulator() {
       </div>
       <p className="muted-text small">
         Acts like someone at a wall keypad: the change happens on the emulated amp, and open-zone
-        finds it by polling, just as it will with real hardware. Use it on a mirror master to see
+        finds it by polling, just as it will with real hardware. Use it on a mirror primary to see
         its zones follow.
       </p>
       <select
@@ -187,12 +187,12 @@ function Polling() {
   if (!form) return null;
   const fields: Array<[keyof PollingConfig, string, string]> = [
     [
-      'mirrorMasterMs',
-      'Mirror master poll',
-      'How quickly keypad changes on a master reach its zones',
+      'mirrorPrimaryMs',
+      'Mirror primary poll',
+      'How quickly keypad changes on a primary zone reach its followers',
     ],
     [
-      'mirrorChildAuditMs',
+      'mirrorFollowerAuditMs',
       'Mirror check cycle',
       'How often every following zone is double-checked',
     ],

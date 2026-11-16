@@ -153,7 +153,7 @@ function handle(msg: ServerMessage): void {
       const sign = msg.volumeOffset > 0 ? '+' : '';
       return toast(`${nameOf(msg.zone)} now follows at ${sign}${msg.volumeOffset} volume`);
     }
-    case 'mirror.childDetached': {
+    case 'mirror.followerDetached': {
       const why =
         msg.reason === 'keypad-detected'
           ? 'a keypad was connected'

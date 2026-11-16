@@ -2,7 +2,8 @@ import type { ConnectionStatus } from './events.ts';
 import type { ModelDescriptor, SourceId, UnitId, ZoneId, ZoneState } from './model.ts';
 
 export type MirrorRole =
-  { groupId: string; role: 'master' } | { groupId: string; role: 'child'; volumeOffset: number };
+  | { groupId: string; role: 'primary' }
+  | { groupId: string; role: 'follower'; volumeOffset: number };
 
 /** A zone as presented to API consumers. */
 export interface ZoneView {

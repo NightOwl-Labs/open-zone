@@ -36,8 +36,8 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 export interface MirrorInput {
   name?: string;
   enabled?: boolean;
-  master?: number;
-  children?: Array<{ zone: number; volumeOffset: number }>;
+  primary?: number;
+  followers?: Array<{ zone: number; volumeOffset: number }>;
 }
 
 export interface Snapshot {

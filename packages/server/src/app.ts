@@ -36,7 +36,7 @@ const nameBody = z.object({ name: z.string().max(40).nullable() });
 const sourceBody = z
   .object({ name: z.string().max(40).nullable().optional(), enabled: z.boolean().optional() })
   .strict();
-const childInput = z.union([
+const followerInput = z.union([
   z.number().int(),
   z.object({
     zone: z.number().int(),
@@ -46,8 +46,8 @@ const childInput = z.union([
 const mirrorCreate = z.object({
   name: z.string().max(40).optional(),
   enabled: z.boolean().optional(),
-  master: z.number().int(),
-  children: z.array(childInput),
+  primary: z.number().int(),
+  followers: z.array(followerInput),
 });
 const mirrorUpdate = mirrorCreate.partial();
 const configPatch = z.object({

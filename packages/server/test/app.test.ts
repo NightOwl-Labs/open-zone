@@ -89,28 +89,28 @@ describe('REST API', () => {
     expect((await json(app, 'PATCH', '/sources/5', { bogus: 1 })).statusCode).toBe(400);
   });
 
-  it('stores per-child volume offsets and bounds them', async () => {
+  it('stores per-follower volume offsets and bounds them', async () => {
     const { app } = await setup();
     const res = await json(app, 'POST', '/mirrors', {
-      master: 11,
-      children: [{ zone: 13, volumeOffset: 4 }],
+      primary: 11,
+      followers: [{ zone: 13, volumeOffset: 4 }],
     });
-    expect(res.json().children).toEqual([{ zone: 13, volumeOffset: 4 }]);
+    expect(res.json().followers).toEqual([{ zone: 13, volumeOffset: 4 }]);
     const bad = await json(app, 'POST', '/mirrors', {
-      master: 14,
-      children: [{ zone: 15, volumeOffset: 50 }],
+      primary: 14,
+      followers: [{ zone: 15, volumeOffset: 50 }],
     });
     expect(bad.statusCode).toBe(400);
   });
 
-  it('manages mirror groups, rejecting keypad children with 409', async () => {
+  it('manages mirror groups, rejecting keypad followers with 409', async () => {
     const { app } = await setup();
-    const conflict = await json(app, 'POST', '/mirrors', { master: 13, children: [12] });
+    const conflict = await json(app, 'POST', '/mirrors', { primary: 13, followers: [12] });
     expect(conflict.statusCode).toBe(409);
     expect(conflict.json().issues.join()).toMatch(/keypad/);
     const created = await json(app, 'POST', '/mirrors', {
-      master: 11,
-      children: [13, 14],
+      primary: 11,
+      followers: [13, 14],
       name: 'Down',
     });
     expect(created.statusCode).toBe(201);
@@ -135,10 +135,10 @@ describe('REST API', () => {
 
   it('updates polling settings', async () => {
     const { app } = await setup();
-    const res = await json(app, 'PATCH', '/config', { polling: { mirrorMasterMs: 750 } });
-    expect(res.json().polling.mirrorMasterMs).toBe(750);
+    const res = await json(app, 'PATCH', '/config', { polling: { mirrorPrimaryMs: 750 } });
+    expect(res.json().polling.mirrorPrimaryMs).toBe(750);
     expect(
-      (await json(app, 'PATCH', '/config', { polling: { mirrorMasterMs: 5 } })).statusCode,
+      (await json(app, 'PATCH', '/config', { polling: { mirrorPrimaryMs: 5 } })).statusCode,
     ).toBe(400);
   });
 });

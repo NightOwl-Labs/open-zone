@@ -32,14 +32,14 @@ npm run simulate
 
 Open **http://open-zone.local:8080** on your phone. The server log also prints the Pi's IP address in case `.local` names don't resolve on your network. Press Ctrl+C to stop.
 
-The emulator acts like three stacked 10761 units (18 zones). Zones 11–15, 21–25 and 31–35 report wall keypads; zones 16, 26 and 36 don't, so those can become mirror children. Its settings are kept separately in `data/simulator/config.json`, so nothing you try now carries over to the real amp.
+The emulator acts like three stacked 10761 units (18 zones). Zones 11–15, 21–25 and 31–35 report wall keypads; zones 16, 26 and 36 don't, so those can become mirror followers. Its settings are kept separately in `data/simulator/config.json`, so nothing you try now carries over to the real amp.
 
 ### Things to try
 
 - **Zones:** turn zones on, change sources and volume, tap a zone name for tone, balance and renaming.
 - **Settings → Sources:** name your sources, e.g. "Sonos" or "TV".
-- **Mirrors:** create a mirror with a keypad zone (e.g. 11) as master and 16 and 26 following it. Change the master and the followers change too.
-- **Settings → Simulated keypad:** press "Vol +" or "Next source" on the master. This is a change made at the wall rather than in the app, and the followers pick it up within about half a second. Try it on a follower too: a volume change becomes an offset, and anything else removes the zone from the mirror.
+- **Mirrors:** create a mirror with a keypad zone (e.g. 11) as primary and 16 and 26 following it. Change the primary and the followers change too.
+- **Settings → Simulated keypad:** press "Vol +" or "Next source" on the primary. This is a change made at the wall rather than in the app, and the followers pick it up within about half a second. Try it on a follower too: a volume change becomes an offset, and anything else removes the zone from the mirror.
 - **Add to Home Screen** from Safari or Chrome to get a full-screen, app-like icon.
 
 ## 4. Keep it running (optional)

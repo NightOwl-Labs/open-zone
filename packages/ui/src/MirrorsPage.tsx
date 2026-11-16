@@ -5,7 +5,7 @@ import { Icon, Sheet, Toggle } from './components.tsx';
 import { groupLabel, offsetLabel, zoneLabel } from './format.ts';
 import { errorText, run, useApp } from './store.ts';
 
-interface Child {
+interface Follower {
   zone: number;
   volumeOffset: number;
 }
@@ -46,24 +46,24 @@ function MirrorEditor({ group, onClose }: { group: MirrorGroup | null; onClose: 
   const zones = useApp((s) => s.zones);
   const mirrors = useApp((s) => s.mirrors);
   const [name, setName] = useState(group?.name ?? '');
-  const [master, setMaster] = useState<number | null>(group?.master ?? null);
-  const [children, setChildren] = useState<Child[]>(
-    group?.children.map((c) => ({ zone: c.zone, volumeOffset: c.volumeOffset })) ?? [],
+  const [primary, setPrimary] = useState<number | null>(group?.primary ?? null);
+  const [followers, setFollowers] = useState<Follower[]>(
+    group?.followers.map((c) => ({ zone: c.zone, volumeOffset: c.volumeOffset })) ?? [],
   );
   const setOffset = (zone: number, volumeOffset: number) =>
-    setChildren((cs) => cs.map((c) => (c.zone === zone ? { ...c, volumeOffset } : c)));
+    setFollowers((cs) => cs.map((c) => (c.zone === zone ? { ...c, volumeOffset } : c)));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   /** Which group (other than the one being edited) a zone already belongs to. */
   const takenBy = (zone: number) =>
     mirrors.find(
-      (g) => g.id !== group?.id && (g.master === zone || g.children.some((c) => c.zone === zone)),
+      (g) => g.id !== group?.id && (g.primary === zone || g.followers.some((c) => c.zone === zone)),
     );
 
-  const masterOptions = zones.filter((z) => !takenBy(z.zone));
-  const childReason = (z: ZoneView): string | null => {
-    if (z.zone === master) return 'master';
+  const primaryOptions = zones.filter((z) => !takenBy(z.zone));
+  const followerReason = (z: ZoneView): string | null => {
+    if (z.zone === primary) return 'primary';
     const g = takenBy(z.zone);
     if (g) return `in ${groupLabel(g, zones)}`;
     if (z.state?.keypad) return 'has keypad';
@@ -71,11 +71,11 @@ function MirrorEditor({ group, onClose }: { group: MirrorGroup | null; onClose: 
   };
 
   const save = async () => {
-    if (master === null || children.length === 0) return;
+    if (primary === null || followers.length === 0) return;
     setSaving(true);
     setError(null);
     try {
-      const input = { name: name.trim(), master, children };
+      const input = { name: name.trim(), primary, followers };
       if (group) await api.updateMirror(group.id, input);
       else await api.createMirror({ ...input, enabled: true });
       onClose();
@@ -99,20 +99,20 @@ function MirrorEditor({ group, onClose }: { group: MirrorGroup | null; onClose: 
         />
       </div>
       <div className="field">
-        <span>Master zone — the zone everyone follows</span>
+        <span>Primary zone — the zone everyone follows</span>
         <select
           className="select"
-          value={master ?? ''}
+          value={primary ?? ''}
           onChange={(e) => {
             const m = Number(e.currentTarget.value);
-            setMaster(m);
-            setChildren((cs) => cs.filter((c) => c.zone !== m));
+            setPrimary(m);
+            setFollowers((cs) => cs.filter((c) => c.zone !== m));
           }}
         >
           <option value="" disabled>
             Choose a zone…
           </option>
-          {masterOptions.map((z) => (
+          {primaryOptions.map((z) => (
             <option key={z.zone} value={z.zone}>
               {zoneLabel(z)}
             </option>
@@ -123,14 +123,14 @@ function MirrorEditor({ group, onClose }: { group: MirrorGroup | null; onClose: 
         <span>Zones that follow it</span>
         <p className="muted-text small">
           Zones with a wall keypad can&apos;t follow another zone, since local changes would fight
-          the mirror. Use the offset to play a zone louder or quieter than the master (e.g. −4 for a
-          bedroom).
+          the mirror. Use the offset to play a zone louder or quieter than the primary (e.g. −4 for
+          a bedroom).
         </p>
         <ul className="check-list">
           {zones.map((z) => {
-            const reason = childReason(z);
-            const child = children.find((c) => c.zone === z.zone);
-            const checked = child !== undefined;
+            const reason = followerReason(z);
+            const follower = followers.find((c) => c.zone === z.zone);
+            const checked = follower !== undefined;
             return (
               <li key={z.zone} className={checked ? 'checked' : ''}>
                 <label className={reason && !checked ? 'disabled' : ''}>
@@ -140,7 +140,7 @@ function MirrorEditor({ group, onClose }: { group: MirrorGroup | null; onClose: 
                     disabled={!!reason && !checked}
                     onChange={(e) => {
                       const on = e.currentTarget.checked;
-                      setChildren((cs) =>
+                      setFollowers((cs) =>
                         on
                           ? [...cs, { zone: z.zone, volumeOffset: 0 }]
                           : cs.filter((c) => c.zone !== z.zone),
@@ -150,10 +150,10 @@ function MirrorEditor({ group, onClose }: { group: MirrorGroup | null; onClose: 
                   <span>{zoneLabel(z)}</span>
                   {reason && <span className="tag">{reason}</span>}
                 </label>
-                {child && (
+                {follower && (
                   <OffsetStepper
                     label={`${zoneLabel(z)} volume offset`}
-                    value={child.volumeOffset}
+                    value={follower.volumeOffset}
                     onChange={(v) => setOffset(z.zone, v)}
                   />
                 )}
@@ -166,7 +166,7 @@ function MirrorEditor({ group, onClose }: { group: MirrorGroup | null; onClose: 
       <button
         type="button"
         className="btn primary block"
-        disabled={master === null || children.length === 0 || saving}
+        disabled={primary === null || followers.length === 0 || saving}
         onClick={() => void save()}
       >
         {saving ? 'Saving…' : group ? 'Save mirror' : 'Create mirror'}
@@ -187,7 +187,7 @@ function GroupCard({ g, onEdit }: { g: MirrorGroup; onEdit: () => void }) {
         <button type="button" className="zone-title" onClick={onEdit}>
           <span className="name">{groupLabel(g, zones)}</span>
           <span className="sub">
-            {name(g.master)} leads · {g.enabled ? 'active' : 'paused'}
+            {name(g.primary)} leads · {g.enabled ? 'active' : 'paused'}
           </span>
         </button>
         <Toggle
@@ -197,8 +197,10 @@ function GroupCard({ g, onEdit }: { g: MirrorGroup; onEdit: () => void }) {
         />
       </div>
       <ul className="chips">
-        {g.children.length === 0 && <li className="muted-text">No zones follow this master.</li>}
-        {g.children.map((c) => (
+        {g.followers.length === 0 && (
+          <li className="muted-text">No zones follow this primary zone yet.</li>
+        )}
+        {g.followers.map((c) => (
           <li key={c.zone} className="chip">
             {name(c.zone)}
             {c.volumeOffset ? <b> {offsetLabel(c.volumeOffset)}</b> : null}
@@ -233,8 +235,8 @@ export function MirrorsPage() {
   return (
     <>
       <p className="intro">
-        A mirror makes zones follow a master: power, source, volume, tone and mute. Change the
-        master here or on its keypad and the others follow within about half a second.
+        A mirror makes zones follow a primary: power, source, volume, tone and mute. Change the
+        primary here or on its keypad and the others follow within about half a second.
       </p>
       {mirrors.map((g) => (
         <GroupCard key={g.id} g={g} onEdit={() => setEditing(g)} />

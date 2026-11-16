@@ -223,7 +223,7 @@ export async function establishLink(
     status: 'fail',
     summary: anyBytes
       ? 'Received bytes but no valid status at any baud rate — likely wrong baud or line noise. See raw capture.'
-      : 'No response at any baud rate. Check: amp powered on; cable in the MASTER unit RS-232 port; ' +
+      : 'No response at any baud rate. Check: amp powered on; cable in the RS-232 port of unit 1 (the main unit); ' +
         'TX/RX crossing (try a null-modem adapter if using straight-through, or vice versa).',
     raw: tried.slice(0, 4),
   });
@@ -414,10 +414,10 @@ export async function checkTiming(ctx: Ctx): Promise<void> {
     data: { zoneQuery: z, unitQuery: u, fullSweepMs: sweep, failures },
   });
   if (z) {
-    const busy = (masters: number) => Math.round(((z.avg * masters) / 500) * 100);
+    const busy = (primaries: number) => Math.round(((z.avg * primaries) / 500) * 100);
     report.find(
       'Bus time for a 500 ms mirror poll',
-      `1 master ≈ ${busy(1)}%, 2 masters ≈ ${busy(2)}%, 3 masters ≈ ${busy(3)}% of the bus`,
+      `1 primary ≈ ${busy(1)}%, 2 primaries ≈ ${busy(2)}%, 3 primaries ≈ ${busy(3)}% of the bus`,
       busy(1) < 40 ? 'pass' : 'warn',
     );
     report.find(
@@ -571,7 +571,7 @@ export async function checkWrites(ctx: Ctx, zone: ZoneId): Promise<void> {
   if (!before.power) {
     report.find(
       'Do settings sent to a powered-OFF zone stick?',
-      sticks ? 'yes' : 'NO — mirror must power children on before other writes',
+      sticks ? 'yes' : 'NO — mirror must power followers on before other writes',
       sticks ? 'pass' : 'warn',
     );
   } else {
@@ -735,18 +735,18 @@ export async function checkSoak(ctx: Ctx): Promise<void> {
     report.add({ id: 'soak', status: 'skip', summary: 'Skipped (--soak 0)' });
     return;
   }
-  const master = [...ctx.zones.keys()][0]!;
+  const primary = [...ctx.zones.keys()][0]!;
   const latencies: number[] = [];
   let errors = 0;
   let overruns = 0;
   let sweeps = 0;
   const end = performance.now() + opts.soakSeconds * 1000;
   let lastSweep = 0;
-  console.log(`      Polling zone ${master} every 500 ms and sweeping all units every 2 s…`);
+  console.log(`      Polling zone ${primary} every 500 ms and sweeping all units every 2 s…`);
   while (performance.now() < end) {
     const tick = performance.now();
     try {
-      await driver.queryZone(master);
+      await driver.queryZone(primary);
       latencies.push(performance.now() - tick);
     } catch {
       errors++;
@@ -770,7 +770,7 @@ export async function checkSoak(ctx: Ctx): Promise<void> {
   report.add({
     id: 'soak',
     status: errors === 0 ? 'pass' : 'warn',
-    summary: `${latencies.length} master polls + ${sweeps} sweeps: ${errors} errors, ${overruns} overruns of the 500 ms budget; poll latency avg ${s?.avg ?? '-'} ms, max ${s?.max ?? '-'} ms`,
+    summary: `${latencies.length} primary polls + ${sweeps} sweeps: ${errors} errors, ${overruns} overruns of the 500 ms budget; poll latency avg ${s?.avg ?? '-'} ms, max ${s?.max ?? '-'} ms`,
     data: { polls: s, sweeps, errors, overruns },
   });
   report.find(

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const CONFIG_SCHEMA_VERSION = 1;
+export const CONFIG_SCHEMA_VERSION = 2;
 
 const zoneKey = z.string().regex(/^\d{2}$/, 'zone keys are two-digit zone ids, e.g. "11"');
 const sourceKey = z.string().regex(/^\d+$/, 'source keys are source numbers, e.g. "1"');
@@ -33,11 +33,11 @@ export const TransportConfigSchema = z.discriminatedUnion('type', [
 
 export const MAX_VOLUME_OFFSET = 38;
 
-export const MirrorChildSchema = z.object({
+export const MirrorFollowerSchema = z.object({
   zone: z.number().int(),
   /**
-   * Child volume = clamp(master volume + offset). Set in the mirror editor, or
-   * learned when the child's volume is changed directly.
+   * Follower volume = clamp(primary volume + offset). Set in the mirror editor, or
+   * learned when the follower's volume is changed directly.
    */
   volumeOffset: z.number().int().min(-MAX_VOLUME_OFFSET).max(MAX_VOLUME_OFFSET).default(0),
 });
@@ -46,15 +46,15 @@ export const MirrorGroupSchema = z.object({
   id: z.string().min(1),
   name: name.optional(),
   enabled: z.boolean().default(true),
-  master: z.number().int(),
-  children: z.array(MirrorChildSchema).default([]),
+  primary: z.number().int(),
+  followers: z.array(MirrorFollowerSchema).default([]),
 });
 
 export const PollingConfigSchema = z.object({
-  /** How often mirror master zones are polled while any mirror is enabled. */
-  mirrorMasterMs: z.number().int().min(100).default(500),
-  /** How often each mirror child is audited (round-robin) while any mirror is enabled. */
-  mirrorChildAuditMs: z.number().int().min(250).default(5000),
+  /** How often mirror primary zones are polled while any mirror is enabled. */
+  mirrorPrimaryMs: z.number().int().min(100).default(500),
+  /** How often each mirror follower is audited (round-robin) while any mirror is enabled. */
+  mirrorFollowerAuditMs: z.number().int().min(250).default(5000),
   /** How often all units are swept while at least one UI client is connected. */
   interactiveMs: z.number().int().min(250).default(2000),
 });
@@ -68,7 +68,7 @@ export const QueueConfigSchema = z.object({
   retries: z.number().int().min(0).max(5).default(1),
 });
 
-export const ConfigSchema = z.object({
+export const ConfigObjectSchema = z.object({
   schemaVersion: z.literal(CONFIG_SCHEMA_VERSION).default(CONFIG_SCHEMA_VERSION),
   device: z
     .object({
@@ -96,8 +96,51 @@ export const ConfigSchema = z.object({
   mirrors: z.array(MirrorGroupSchema).default([]),
 });
 
+/**
+ * Upgrade older config files in place before validation.
+ * v1 → v2: mirror groups used `master`/`children`; polling used
+ * `mirrorMasterMs`/`mirrorChildAuditMs`. Renamed to primary/followers.
+ */
+export function migrateConfig(input: unknown): unknown {
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) return input;
+  const c: Record<string, unknown> = { ...input };
+  if (c.schemaVersion === undefined || c.schemaVersion === 1) {
+    if (Array.isArray(c.mirrors)) {
+      c.mirrors = c.mirrors.map((g: unknown) => {
+        if (typeof g !== 'object' || g === null) return g;
+        const {
+          ['master']: legacyPrimary,
+          ['children']: legacyFollowers,
+          ...rest
+        } = g as Record<string, unknown>;
+        return {
+          ...rest,
+          primary: rest.primary ?? legacyPrimary,
+          followers: rest.followers ?? legacyFollowers,
+        };
+      });
+    }
+    if (typeof c.polling === 'object' && c.polling !== null) {
+      const {
+        ['mirrorMasterMs']: legacyPrimaryMs,
+        ['mirrorChildAuditMs']: legacyAuditMs,
+        ...polling
+      } = c.polling as Record<string, unknown>;
+      c.polling = {
+        ...polling,
+        ...(legacyPrimaryMs !== undefined && { mirrorPrimaryMs: legacyPrimaryMs }),
+        ...(legacyAuditMs !== undefined && { mirrorFollowerAuditMs: legacyAuditMs }),
+      };
+    }
+    c.schemaVersion = 2;
+  }
+  return c;
+}
+
+export const ConfigSchema = z.preprocess(migrateConfig, ConfigObjectSchema);
+
 export type TransportConfig = z.infer<typeof TransportConfigSchema>;
-export type MirrorChild = z.infer<typeof MirrorChildSchema>;
+export type MirrorFollower = z.infer<typeof MirrorFollowerSchema>;
 export type MirrorGroup = z.infer<typeof MirrorGroupSchema>;
 export type PollingConfig = z.infer<typeof PollingConfigSchema>;
 export type QueueConfig = z.infer<typeof QueueConfigSchema>;

@@ -17,18 +17,18 @@ function change(z: ZoneView, patch: ZonePatch): void {
   void setZone(z.zone, patch);
 }
 
-/** A child of an enabled mirror is driven by its master: no controls of its own. */
-function isFollowing(role: Role): role is Extract<NonNullable<Role>, { kind: 'child' }> {
-  return role?.kind === 'child' && role.group.enabled;
+/** A follower of an enabled mirror is driven by its primary: no controls of its own. */
+function isFollowing(role: Role): role is Extract<NonNullable<Role>, { kind: 'follower' }> {
+  return role?.kind === 'follower' && role.group.enabled;
 }
 
 function FollowingLine({ role, zones }: { role: Role; zones: ZoneView[] }) {
   if (!isFollowing(role)) return null;
-  const master = zones.find((z) => z.zone === role.group.master);
+  const primary = zones.find((z) => z.zone === role.group.primary);
   return (
-    <span className="badge child">
+    <span className="badge follower">
       <Icon name="link" />
-      Following {master ? zoneLabel(master) : `Zone ${role.group.master}`}
+      Following {primary ? zoneLabel(primary) : `Zone ${role.group.primary}`}
       {role.volumeOffset ? ` · volume ${offsetLabel(role.volumeOffset)}` : ''}
     </span>
   );
@@ -36,18 +36,18 @@ function FollowingLine({ role, zones }: { role: Role; zones: ZoneView[] }) {
 
 function RoleBadge({ role, zones }: { role: Role; zones: ZoneView[] }) {
   if (!role) return null;
-  if (role.kind === 'child') {
+  if (role.kind === 'follower') {
     // Paused group: the zone is independent again, just note the membership.
     return role.group.enabled ? null : (
-      <span className="badge child paused">
+      <span className="badge follower paused">
         <Icon name="link" />
         {groupLabel(role.group, zones)} · paused
       </span>
     );
   }
-  const n = role.group.children.length;
+  const n = role.group.followers.length;
   return (
-    <span className={`badge master${role.group.enabled ? '' : ' paused'}`}>
+    <span className={`badge primary${role.group.enabled ? '' : ' paused'}`}>
       <Icon name="link" />
       {groupLabel(role.group, zones)} · leads {n} {n === 1 ? 'zone' : 'zones'}
       {role.group.enabled ? '' : ' · paused'}
@@ -162,7 +162,7 @@ function ZoneDetail({ zone, onClose }: { zone: number; onClose: () => void }) {
         <p className="note">
           <FollowingLine role={role} zones={zones} />
           <br />
-          This zone copies its master. To control it on its own, remove it from the mirror or pause
+          This zone copies its primary. To control it on its own, remove it from the mirror or pause
           the mirror on the Mirrors tab. The volume offset is set there too.
         </p>
       ) : (

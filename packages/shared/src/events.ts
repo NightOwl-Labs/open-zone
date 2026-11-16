@@ -6,7 +6,7 @@ import type { SourceView } from './views.ts';
 export type ChangeOrigin =
   /** A request through the controller API (REST, WS, future integrations). */
   | 'api'
-  /** The controller propagating a mirror master's state to a child. */
+  /** The controller propagating a mirror primary's state to a follower. */
   | 'mirror'
   /** A difference discovered by polling (keypad, front panel, another controller). */
   | 'poll';
@@ -30,7 +30,7 @@ export type ControllerEvent =
   | { type: 'mirror.deleted'; groupId: string }
   | { type: 'mirror.offsetChanged'; groupId: string; zone: ZoneId; volumeOffset: number }
   | {
-      type: 'mirror.childDetached';
+      type: 'mirror.followerDetached';
       groupId: string;
       zone: ZoneId;
       reason: DetachReason;

@@ -27,7 +27,7 @@ async function setup(
   const driver = new MonopriceDriver(amp.createTransport(), { timeoutMs: 40, retries: 0 });
   const store = new MemoryConfigStore({
     queue: { interCommandGapMs: 0 },
-    polling: { mirrorMasterMs: 100, mirrorChildAuditMs: 250, interactiveMs: 250 },
+    polling: { mirrorPrimaryMs: 100, mirrorFollowerAuditMs: 250, interactiveMs: 250 },
     ...opts.config,
   });
   let n = 0;
@@ -134,9 +134,9 @@ describe('Controller: source enable/disable', () => {
     expect(store.current.sources['4']).toEqual({ enabled: false });
     expect(ofType('source.updated')[0]?.source).toEqual(v);
     await expect(ctl.setZone(11, { source: 4 })).rejects.toThrow(/source 4 is disabled/);
-    // A keypad picks the disabled source on a master: the mirror still follows.
+    // A keypad picks the disabled source on a primary: the mirror still follows.
     amp.pressKeypad(11, { power: true });
-    await ctl.createMirror({ master: 11, children: [12] });
+    await ctl.createMirror({ primary: 11, followers: [12] });
     await ctl.whenIdle();
     amp.pressKeypad(11, { source: 4 });
     await vi.waitFor(() => expect(amp.getZone(12).source).toBe(4));
@@ -161,32 +161,32 @@ describe('Controller: source enable/disable', () => {
 });
 
 describe('Controller: mirror setup', () => {
-  it('rejects children that have a wall keypad', async () => {
+  it('rejects followers that have a wall keypad', async () => {
     const { ctl } = await setup({ amp: { keypadZones: [12] } });
-    await expect(ctl.createMirror({ master: 11, children: [12] })).rejects.toThrow(/keypad/);
-    await expect(ctl.createMirror({ master: 12, children: [13] })).resolves.toMatchObject({
-      master: 12,
+    await expect(ctl.createMirror({ primary: 11, followers: [12] })).rejects.toThrow(/keypad/);
+    await expect(ctl.createMirror({ primary: 12, followers: [13] })).resolves.toMatchObject({
+      primary: 12,
     });
   });
 
   it('rejects overlapping groups', async () => {
     const { ctl } = await setup();
-    await ctl.createMirror({ master: 11, children: [12] });
-    await expect(ctl.createMirror({ master: 12, children: [13] })).rejects.toBeInstanceOf(
+    await ctl.createMirror({ primary: 11, followers: [12] });
+    await expect(ctl.createMirror({ primary: 12, followers: [13] })).rejects.toBeInstanceOf(
       MirrorValidationError,
     );
   });
 
-  it('syncs children to the master on creation', async () => {
+  it('syncs followers to the primary on creation', async () => {
     const { ctl, amp } = await setup();
     amp.pressKeypad(11, { power: true, volume: 25, source: 3, bass: 9 });
-    const group = await ctl.createMirror({ master: 11, children: [12, 21], name: 'Downstairs' });
+    const group = await ctl.createMirror({ primary: 11, followers: [12, 21], name: 'Downstairs' });
     await ctl.whenIdle();
     expect(group).toMatchObject({ id: 'g1', name: 'Downstairs', enabled: true });
     for (const z of [12, 21]) {
       expect(amp.getZone(z)).toMatchObject({ power: true, volume: 25, source: 3, bass: 9 });
     }
-    expect(ctl.getZone(12).mirror).toEqual({ groupId: 'g1', role: 'child', volumeOffset: 0 });
+    expect(ctl.getZone(12).mirror).toEqual({ groupId: 'g1', role: 'follower', volumeOffset: 0 });
   });
 });
 
@@ -194,23 +194,23 @@ describe('Controller: mirror propagation', () => {
   async function mirrored() {
     const t = await setup();
     t.amp.pressKeypad(11, { power: true, volume: 20, source: 2 });
-    await t.ctl.createMirror({ master: 11, children: [12, 13] });
+    await t.ctl.createMirror({ primary: 11, followers: [12, 13] });
     await t.ctl.whenIdle();
     return t;
   }
 
-  it('pushes API changes on the master to children immediately; the next poll does nothing', async () => {
+  it('pushes API changes on the primary to followers immediately; the next poll does nothing', async () => {
     const { ctl, amp, sets } = await mirrored();
     const before = sets().length;
     await ctl.setZone(11, { volume: 30 });
     await ctl.whenIdle();
     expect(sets().slice(before).sort()).toEqual(['<11VO30', '<12VO30', '<13VO30']);
     expect(amp.getZone(13).volume).toBe(30);
-    await sleep(350); // several master polls and a child audit
+    await sleep(350); // several primary polls and a follower audit
     expect(sets().length).toBe(before + 3);
   });
 
-  it('picks up keypad changes on the master by polling', async () => {
+  it('picks up keypad changes on the primary by polling', async () => {
     const { amp } = await mirrored();
     amp.pressKeypad(11, { source: 5, volume: 18, mute: true });
     await vi.waitFor(() => {
@@ -219,13 +219,13 @@ describe('Controller: mirror propagation', () => {
     });
   });
 
-  it('turns an out-of-band child volume change into an offset', async () => {
+  it('turns an out-of-band follower volume change into an offset', async () => {
     const { ctl, amp, store, ofType } = await mirrored();
     amp.pressKeypad(12, { volume: 24 });
     await vi.waitFor(() => expect(ofType('mirror.offsetChanged')).toHaveLength(1), {
       timeout: 1500,
     });
-    expect(store.current.mirrors[0]?.children.find((c) => c.zone === 12)?.volumeOffset).toBe(4);
+    expect(store.current.mirrors[0]?.followers.find((c) => c.zone === 12)?.volumeOffset).toBe(4);
     await ctl.setZone(11, { volume: 10 });
     await ctl.whenIdle();
     expect(amp.getZone(12).volume).toBe(14);
@@ -235,13 +235,13 @@ describe('Controller: mirror propagation', () => {
     expect(amp.getZone(12).volume).toBe(38); // clamped
   });
 
-  it('detaches a child whose other settings change out-of-band', async () => {
+  it('detaches a follower whose other settings change out-of-band', async () => {
     const { ctl, amp, ofType } = await mirrored();
     amp.pressKeypad(13, { source: 6 });
-    await vi.waitFor(() => expect(ofType('mirror.childDetached')).toHaveLength(1), {
+    await vi.waitFor(() => expect(ofType('mirror.followerDetached')).toHaveLength(1), {
       timeout: 1500,
     });
-    expect(ofType('mirror.childDetached')[0]).toMatchObject({
+    expect(ofType('mirror.followerDetached')[0]).toMatchObject({
       zone: 13,
       reason: 'property-changed',
       property: 'source',
@@ -253,22 +253,22 @@ describe('Controller: mirror propagation', () => {
     expect(amp.getZone(13).source).toBe(6);
   });
 
-  it('applies the same rules to API changes made directly on a child', async () => {
+  it('applies the same rules to API changes made directly on a follower', async () => {
     const { ctl, ofType } = await mirrored();
     await ctl.setZone(12, { volume: 15 });
     await ctl.whenIdle();
     expect(ofType('mirror.offsetChanged')[0]).toMatchObject({ zone: 12, volumeOffset: -5 });
     await ctl.setZone(13, { treble: 3 });
     await ctl.whenIdle();
-    expect(ofType('mirror.childDetached')[0]).toMatchObject({ zone: 13, property: 'treble' });
+    expect(ofType('mirror.followerDetached')[0]).toMatchObject({ zone: 13, property: 'treble' });
   });
 
-  it('detaches a child when a keypad is connected to it', async () => {
+  it('detaches a follower when a keypad is connected to it', async () => {
     const { amp, ofType } = await mirrored();
     amp.setKeypadConnected(12, true);
     await vi.waitFor(
       () =>
-        expect(ofType('mirror.childDetached')[0]).toMatchObject({
+        expect(ofType('mirror.followerDetached')[0]).toMatchObject({
           zone: 12,
           reason: 'keypad-detected',
         }),
@@ -280,11 +280,11 @@ describe('Controller: mirror propagation', () => {
 
   it('applies a volume offset set in the mirror editor', async () => {
     const { ctl, amp, store } = await mirrored();
-    await ctl.updateMirror('g1', { children: [{ zone: 12, volumeOffset: -6 }, 13] });
+    await ctl.updateMirror('g1', { followers: [{ zone: 12, volumeOffset: -6 }, 13] });
     await ctl.whenIdle();
     expect(amp.getZone(12).volume).toBe(14);
     expect(amp.getZone(13).volume).toBe(20);
-    expect(store.current.mirrors[0]?.children).toEqual([
+    expect(store.current.mirrors[0]?.followers).toEqual([
       { zone: 12, volumeOffset: -6 },
       { zone: 13, volumeOffset: 0 },
     ]);
@@ -306,25 +306,27 @@ describe('Controller: mirror propagation', () => {
 });
 
 describe('Controller: power handling and recovery', () => {
-  it('does not judge children while master and child are both off; full resync on power-on', async () => {
+  it('does not judge followers while primary and follower are both off; full resync on power-on', async () => {
     const { ctl, amp, ofType } = await setup({ amp: { ignoreSetsWhenOff: true } });
     amp.pressKeypad(11, { volume: 20 });
-    await ctl.createMirror({ master: 11, children: [12] });
+    await ctl.createMirror({ primary: 11, followers: [12] });
     await ctl.whenIdle();
     amp.pressKeypad(12, { volume: 3, source: 4 }); // drift while idle
     await sleep(400);
-    expect(ofType('mirror.childDetached')).toHaveLength(0);
+    expect(ofType('mirror.followerDetached')).toHaveLength(0);
     expect(ofType('mirror.offsetChanged')).toHaveLength(0);
     amp.pressKeypad(11, { power: true });
     await vi.waitFor(() =>
       expect(amp.getZone(12)).toMatchObject({ power: true, volume: 20, source: 1 }),
     );
-    expect(ofType('mirror.childDetached')).toHaveLength(0);
+    expect(ofType('mirror.followerDetached')).toHaveLength(0);
   });
 
   it('restores persisted mirrors on startup (power-loss recovery)', async () => {
     const { amp } = await setup({
-      config: { mirrors: [{ id: 'saved', master: 11, children: [{ zone: 12, volumeOffset: 2 }] }] },
+      config: {
+        mirrors: [{ id: 'saved', primary: 11, followers: [{ zone: 12, volumeOffset: 2 }] }],
+      },
       before: (a) => a.pressKeypad(11, { power: true, volume: 10, source: 4 }),
     });
     await vi.waitFor(() =>
@@ -337,7 +339,7 @@ describe('Controller: power handling and recovery', () => {
   it('resyncs mirrors after reconnecting', async () => {
     const { ctl, amp } = await setup();
     amp.pressKeypad(11, { power: true });
-    await ctl.createMirror({ master: 11, children: [12] });
+    await ctl.createMirror({ primary: 11, followers: [12] });
     await ctl.whenIdle();
     amp.dropLink();
     amp.pressKeypad(11, { source: 3 });

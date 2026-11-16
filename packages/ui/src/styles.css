@@ -11,7 +11,7 @@
   --ok: #3ccf8e;
   --warn: #f2b84b;
   --bad: #ff6b6b;
-  --master: #b98cff;
+  --primary: #b98cff;
   --radius: 16px;
   --tap: 44px;
   --tabbar: 64px;
@@ -39,7 +39,7 @@
     --ok: #13985e;
     --warn: #b77700;
     --bad: #d63c3c;
-    --master: #7b4fd6;
+    --primary: #7b4fd6;
   }
 }
 
@@ -274,9 +274,9 @@ button {
   height: 14px;
 }
 
-.badge.master {
-  background: color-mix(in srgb, var(--master) 18%, transparent);
-  color: var(--master);
+.badge.primary {
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
+  color: var(--primary);
 }
 
 .badge.paused {
@@ -484,8 +484,8 @@ input[type='range']::-moz-range-thumb {
   margin: 14px 0;
 }
 
-.field > span:first-child,
-.field-row > span:first-child {
+.field > span:first-follower,
+.field-row > span:first-follower {
   color: var(--text-2);
   font-size: 14px;
   font-weight: 600;

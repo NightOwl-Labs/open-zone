@@ -47,7 +47,7 @@ const logger: Logger = {
 const store = new JsonFileConfigStore(join(dataDir, 'config.json'));
 let config = await store.load();
 if (values.simulate && config.device.transport.type !== 'simulator') {
-  // Three stacked units; zones x6 have no keypad so they can be mirror children.
+  // Three stacked units; zones x6 have no keypad so they can be mirror followers.
   const keypadZones = [1, 2, 3].flatMap((u) => [1, 2, 3, 4, 5].map((i) => u * 10 + i));
   config = {
     ...config,

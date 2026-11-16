@@ -25,21 +25,21 @@ export function offsetLabel(n: number): string {
 }
 
 export type Role =
-  | { kind: 'master'; group: MirrorGroup }
-  | { kind: 'child'; group: MirrorGroup; volumeOffset: number }
+  | { kind: 'primary'; group: MirrorGroup }
+  | { kind: 'follower'; group: MirrorGroup; volumeOffset: number }
   | null;
 
 export function roleOf(zone: number, mirrors: MirrorGroup[]): Role {
   for (const g of mirrors) {
-    if (g.master === zone) return { kind: 'master', group: g };
-    const c = g.children.find((x) => x.zone === zone);
-    if (c) return { kind: 'child', group: g, volumeOffset: c.volumeOffset };
+    if (g.primary === zone) return { kind: 'primary', group: g };
+    const c = g.followers.find((x) => x.zone === zone);
+    if (c) return { kind: 'follower', group: g, volumeOffset: c.volumeOffset };
   }
   return null;
 }
 
 export function groupLabel(g: MirrorGroup, zones: ZoneView[]): string {
   if (g.name) return g.name;
-  const m = zones.find((z) => z.zone === g.master);
-  return `Mirror of ${m ? zoneLabel(m) : `Zone ${g.master}`}`;
+  const m = zones.find((z) => z.zone === g.primary);
+  return `Mirror of ${m ? zoneLabel(m) : `Zone ${g.primary}`}`;
 }

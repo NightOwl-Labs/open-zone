@@ -13,7 +13,7 @@ Each phase ends with something that can be demonstrated. Hardware is needed from
 - `shared`: zod schemas for ZoneState, ModelDescriptor, MirrorGroup, Config and API payloads.
 - `drivers/simulator`: an in-memory 18-zone amp with configurable latency and a "press the keypad" hook to simulate out-of-band changes.
 - `core`: CommandQueue (priorities, timeout, inter-command gap, RTT metric), ZoneStateCache with pending-write masking, EventBus, ControllerService.
-- MirrorEngine with full unit tests: immediate fan-out, poll-detected master change, the volume-offset rule, the detach rule, keypad rejection, and the no-chains rule.
+- MirrorEngine with full unit tests: immediate fan-out, poll-detected primary change, the volume-offset rule, the detach rule, keypad rejection, and the no-chains rule.
 - **Done when:** the test suite covers every row of the mirror-engine table in ARCHITECTURE §7.
 
 ## Phase 2: Monoprice driver and hardware bring-up — code ✅, hardware validation pending
@@ -29,7 +29,7 @@ Each phase ends with something that can be demonstrated. Hardware is needed from
 
 - Fastify app: REST routes, WebSocket events, OpenAPI docs, static hosting, and a no-op auth hook.
 - JSON ConfigStore (atomic writes, schema versioning).
-- PollScheduler tiers (mirror-master, mirror-child audit, interactive, idle) driven by the number of mirrors and connected clients.
+- PollScheduler tiers (mirror-primary, mirror-follower audit, interactive, idle) driven by the number of mirrors and connected clients.
 - Startup and recovery state machine (ARCHITECTURE §8).
 - **Done when:** curl and `wscat` can drive the simulator and the real amp. Unplugging and replugging USB recovers automatically.
 
@@ -42,10 +42,10 @@ Each phase ends with something that can be demonstrated. Hardware is needed from
 
 ## Phase 5: Mirroring on hardware and tuning
 
-- Run mirror groups on the real amp. Change the master from its keypad and confirm children follow within the poll interval.
-- Tune the 500 ms master poll and the child-audit interval using the RTT metric.
+- Run mirror groups on the real amp. Change the primary from its keypad and confirm followers follow within the poll interval.
+- Tune the 500 ms primary poll and the follower-audit interval using the RTT metric.
 - Soak test: 24 h with mirrors enabled, checking for missed commands, memory growth and CPU on the Pi 3.
-- **Done when:** a keypad change on the master reaches the children in under 1 s with no dropped commands over 24 h.
+- **Done when:** a keypad change on the primary reaches the followers in under 1 s with no dropped commands over 24 h.
 
 ## Phase 6: Deployment
 

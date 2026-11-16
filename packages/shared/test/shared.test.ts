@@ -32,8 +32,8 @@ describe('config', () => {
   it('fills defaults from an empty object', () => {
     const c = defaultConfig();
     expect(c.polling).toEqual({
-      mirrorMasterMs: 500,
-      mirrorChildAuditMs: 5000,
+      mirrorPrimaryMs: 500,
+      mirrorFollowerAuditMs: 5000,
       interactiveMs: 2000,
     });
     expect(c.device.transport).toEqual({ type: 'serial', path: '/dev/amp0', baudRate: 9600 });
@@ -54,14 +54,33 @@ describe('config', () => {
     expect(() => parseConfig({ schemaVersion: 99 })).toThrow();
   });
 
-  it('defaults mirror child offsets to 0', () => {
-    const c = parseConfig({ mirrors: [{ id: 'g', master: 11, children: [{ zone: 12 }] }] });
+  it('defaults mirror follower offsets to 0', () => {
+    const c = parseConfig({ mirrors: [{ id: 'g', primary: 11, followers: [{ zone: 12 }] }] });
     expect(c.mirrors[0]).toEqual({
       id: 'g',
       enabled: true,
-      master: 11,
-      children: [{ zone: 12, volumeOffset: 0 }],
+      primary: 11,
+      followers: [{ zone: 12, volumeOffset: 0 }],
     });
+  });
+});
+
+describe('config migration', () => {
+  it('upgrades v1 configs (master/children) to v2 (primary/followers)', () => {
+    const c = parseConfig({
+      schemaVersion: 1,
+      polling: { mirrorMasterMs: 750, mirrorChildAuditMs: 4000 },
+      mirrors: [{ id: 'g', master: 11, children: [{ zone: 16, volumeOffset: -2 }] }],
+    });
+    expect(c.schemaVersion).toBe(2);
+    expect(c.polling).toMatchObject({ mirrorPrimaryMs: 750, mirrorFollowerAuditMs: 4000 });
+    expect(c.mirrors[0]).toEqual({
+      id: 'g',
+      enabled: true,
+      primary: 11,
+      followers: [{ zone: 16, volumeOffset: -2 }],
+    });
+    expect(JSON.stringify(c)).not.toMatch(/master|child/i);
   });
 });
 

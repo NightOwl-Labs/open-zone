@@ -34,8 +34,8 @@ import type { ConfigStore } from './config-store.ts';
 import { EventBus } from './event-bus.ts';
 import {
   MirrorValidationError,
-  evaluateChild,
-  expectedChildSettings,
+  evaluateFollower,
+  expectedFollowerSettings,
   orderWrites,
   validateGroupShape,
 } from './mirror.ts';
@@ -66,8 +66,8 @@ export interface ControllerOptions {
 export interface MirrorInput {
   name?: string | undefined;
   enabled?: boolean | undefined;
-  master: ZoneId;
-  children: Array<ZoneId | { zone: ZoneId; volumeOffset?: number }>;
+  primary: ZoneId;
+  followers: Array<ZoneId | { zone: ZoneId; volumeOffset?: number }>;
 }
 
 export class NotConnectedError extends Error {
@@ -113,7 +113,7 @@ export class Controller {
   private reconnectDelay: number;
   private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
   private readonly background = new Set<Promise<unknown>>();
-  /** Children currently being brought in line by a fan-out; audits skip them. */
+  /** Followers currently being brought in line by a fan-out; audits skip them. */
   private readonly syncing = new Map<ZoneId, number>();
   private unsubscribeDisconnect: (() => void) | undefined;
 
@@ -131,8 +131,8 @@ export class Controller {
     this.newId = options.newId ?? (() => crypto.randomUUID().slice(0, 8));
     this.scheduler = new PollScheduler(
       {
-        mirrorMasters: () => this.activeGroups().map((g) => g.master),
-        mirrorChildren: () => this.activeGroups().flatMap((g) => g.children.map((c) => c.zone)),
+        mirrorPrimarys: () => this.activeGroups().map((g) => g.primary),
+        mirrorFollowers: () => this.activeGroups().flatMap((g) => g.followers.map((c) => c.zone)),
         interactiveClients: () => this.clients,
         pollZone: (zone) => this.refreshZone(zone),
         pollAll: () => this.refreshAll(),
@@ -310,9 +310,9 @@ export class Controller {
       updatedAt: this.cache.updatedAt(zone),
       mirror: !role
         ? null
-        : role.role === 'master'
-          ? { groupId: role.group.id, role: 'master' }
-          : { groupId: role.group.id, role: 'child', volumeOffset: role.child.volumeOffset },
+        : role.role === 'primary'
+          ? { groupId: role.group.id, role: 'primary' }
+          : { groupId: role.group.id, role: 'follower', volumeOffset: role.follower.volumeOffset },
     };
   }
 
@@ -433,8 +433,8 @@ export class Controller {
     const group: MirrorGroup = {
       id: this.newId(),
       enabled: input.enabled ?? true,
-      master: input.master,
-      children: input.children.map((c) =>
+      primary: input.primary,
+      followers: input.followers.map((c) =>
         typeof c === 'number' ? { zone: c, volumeOffset: 0 } : { volumeOffset: 0, ...c },
       ),
     };
@@ -449,18 +449,18 @@ export class Controller {
 
   async updateMirror(id: string, input: Partial<MirrorInput>): Promise<MirrorGroup> {
     const current = this.getMirror(id);
-    const offsets = new Map(current.children.map((c) => [c.zone, c.volumeOffset]));
+    const offsets = new Map(current.followers.map((c) => [c.zone, c.volumeOffset]));
     const next: MirrorGroup = {
       ...current,
       ...(input.enabled !== undefined && { enabled: input.enabled }),
-      ...(input.master !== undefined && { master: input.master }),
+      ...(input.primary !== undefined && { primary: input.primary }),
     };
     if (input.name !== undefined) {
       if (input.name?.trim()) next.name = input.name.trim();
       else delete next.name;
     }
-    if (input.children) {
-      next.children = input.children.map((c) =>
+    if (input.followers) {
+      next.followers = input.followers.map((c) =>
         typeof c === 'number'
           ? { zone: c, volumeOffset: offsets.get(c) ?? 0 }
           : { zone: c.zone, volumeOffset: c.volumeOffset ?? offsets.get(c.zone) ?? 0 },
@@ -490,33 +490,34 @@ export class Controller {
   private async validateGroup(group: MirrorGroup): Promise<void> {
     const issues = validateGroupShape(this.model, this.units, group, this.config.mirrors);
     if (issues.length === 0) {
-      // Children must not have keypads: read them fresh from the hardware.
-      for (const child of group.children) {
-        const view = await this.refreshZone(child.zone, 'high');
+      // Followers must not have keypads: read them fresh from the hardware.
+      for (const follower of group.followers) {
+        const view = await this.refreshZone(follower.zone, 'high');
         if (view.state?.keypad) {
-          issues.push(`zone ${child.zone} has a wall keypad and cannot be a mirror child`);
+          issues.push(`zone ${follower.zone} has a wall keypad and cannot be a mirror follower`);
         }
       }
     }
     if (issues.length) throw new MirrorValidationError(issues);
   }
 
-  /** Read the master and children, then bring every child in line with the master. */
+  /** Read the primary and followers, then bring every follower in line with the primary. */
   private async syncGroup(id: string): Promise<void> {
     const group = this.config.mirrors.find((g) => g.id === id);
     if (!group?.enabled) return;
-    const zones = group.children.map((c) => c.zone);
+    const zones = group.followers.map((c) => c.zone);
     await this.whileSyncing(zones, async () => {
-      await this.refreshZone(group.master, 'high');
+      await this.refreshZone(group.primary, 'high');
       for (const zone of zones) await this.refreshZone(zone, 'high');
       for (const zone of zones) {
-        if (this.cache.get(zone)?.keypad) await this.detachChild(group.id, zone, 'keypad-detected');
+        if (this.cache.get(zone)?.keypad)
+          await this.detachFollower(group.id, zone, 'keypad-detected');
       }
       await this.fanOut(group.id);
     });
   }
 
-  /** Suppress child audits for these zones while the mirror itself is changing them. */
+  /** Suppress follower audits for these zones while the mirror itself is changing them. */
   private async whileSyncing<T>(zones: readonly ZoneId[], fn: () => Promise<T>): Promise<T> {
     for (const z of zones) this.syncing.set(z, (this.syncing.get(z) ?? 0) + 1);
     try {
@@ -530,51 +531,58 @@ export class Controller {
     }
   }
 
-  /** Push the master's current settings to each child of an enabled group. */
-  private async fanOut(id: string, options: { reReadChildren?: boolean } = {}): Promise<void> {
+  /** Push the primary's current settings to each follower of an enabled group. */
+  private async fanOut(id: string, options: { reReadFollowers?: boolean } = {}): Promise<void> {
     const group = this.config.mirrors.find((g) => g.id === id);
     if (!group?.enabled) return;
-    const master = this.cache.get(group.master);
-    if (!master) return;
+    const primary = this.cache.get(group.primary);
+    if (!primary) return;
     await Promise.all(
-      group.children.map(({ zone, volumeOffset }) =>
+      group.followers.map(({ zone, volumeOffset }) =>
         this.whileSyncing([zone], async () => {
-          if (options.reReadChildren || !this.cache.get(zone)) {
+          if (options.reReadFollowers || !this.cache.get(zone)) {
             await this.refreshZone(zone, 'high');
           }
-          const child = this.cache.get(zone);
-          const latestMaster = this.cache.get(group.master) ?? master;
-          if (!child) return;
-          const expected = expectedChildSettings(this.model, latestMaster, volumeOffset);
-          const patch = diffSettings(settingsOf(child), expected);
+          const follower = this.cache.get(zone);
+          const latestPrimary = this.cache.get(group.primary) ?? primary;
+          if (!follower) return;
+          const expected = expectedFollowerSettings(this.model, latestPrimary, volumeOffset);
+          const patch = diffSettings(settingsOf(follower), expected);
           if (Object.keys(patch).length) await this.writeZone(zone, patch, 'mirror');
         }),
       ),
     );
   }
 
-  /** Apply the backup rule to a child whose state was observed or written outside the mirror. */
-  private async auditChild(groupId: string, zone: ZoneId): Promise<void> {
+  /** Apply the backup rule to a follower whose state was observed or written outside the mirror. */
+  private async auditFollower(groupId: string, zone: ZoneId): Promise<void> {
     const group = this.config.mirrors.find((g) => g.id === groupId);
-    const entry = group?.children.find((c) => c.zone === zone);
+    const entry = group?.followers.find((c) => c.zone === zone);
     if (!group?.enabled || !entry || this.syncing.has(zone)) return;
-    const master = this.cache.get(group.master);
-    const child = this.cache.get(zone);
-    if (!master || !child) return;
-    const ignore = [...this.cache.pendingProps(zone), ...this.cache.pendingProps(group.master)];
-    const verdict = evaluateChild(this.model, master, child, entry.volumeOffset, ignore);
+    const primary = this.cache.get(group.primary);
+    const follower = this.cache.get(zone);
+    if (!primary || !follower) return;
+    const ignore = [...this.cache.pendingProps(zone), ...this.cache.pendingProps(group.primary)];
+    const verdict = evaluateFollower(this.model, primary, follower, entry.volumeOffset, ignore);
     if (verdict.kind === 'offset') {
-      await this.setChildOffset(group.id, zone, verdict.volumeOffset);
+      await this.setFollowerOffset(group.id, zone, verdict.volumeOffset);
     } else if (verdict.kind === 'detach') {
-      await this.detachChild(group.id, zone, verdict.reason, verdict.property);
+      await this.detachFollower(group.id, zone, verdict.reason, verdict.property);
     }
   }
 
-  private async setChildOffset(groupId: string, zone: ZoneId, volumeOffset: number): Promise<void> {
+  private async setFollowerOffset(
+    groupId: string,
+    zone: ZoneId,
+    volumeOffset: number,
+  ): Promise<void> {
     const mirrors = this.config.mirrors.map((g) =>
       g.id !== groupId
         ? g
-        : { ...g, children: g.children.map((c) => (c.zone === zone ? { ...c, volumeOffset } : c)) },
+        : {
+            ...g,
+            followers: g.followers.map((c) => (c.zone === zone ? { ...c, volumeOffset } : c)),
+          },
     );
     await this.saveConfig({ ...this.config, mirrors });
     this.log.info(`mirror ${groupId}: zone ${zone} volume offset now ${volumeOffset}`);
@@ -582,14 +590,14 @@ export class Controller {
     this.emit({ type: 'mirror.updated', group: this.getMirror(groupId) });
   }
 
-  private async detachChild(
+  private async detachFollower(
     groupId: string,
     zone: ZoneId,
     reason: DetachReason,
     property?: SettableProp,
   ): Promise<void> {
     const mirrors = this.config.mirrors.map((g) =>
-      g.id !== groupId ? g : { ...g, children: g.children.filter((c) => c.zone !== zone) },
+      g.id !== groupId ? g : { ...g, followers: g.followers.filter((c) => c.zone !== zone) },
     );
     await this.saveConfig({ ...this.config, mirrors });
     this.log.info(
@@ -597,8 +605,8 @@ export class Controller {
     );
     this.emit(
       property
-        ? { type: 'mirror.childDetached', groupId, zone, reason, property }
-        : { type: 'mirror.childDetached', groupId, zone, reason },
+        ? { type: 'mirror.followerDetached', groupId, zone, reason, property }
+        : { type: 'mirror.followerDetached', groupId, zone, reason },
     );
     this.emit({ type: 'mirror.updated', group: this.getMirror(groupId) });
     this.scheduler.update();
@@ -607,19 +615,19 @@ export class Controller {
   // ───────────────────────────── internals ─────────────────────────────
 
   private activeGroups(): MirrorGroup[] {
-    return this.config?.mirrors.filter((g) => g.enabled && g.children.length > 0) ?? [];
+    return this.config?.mirrors.filter((g) => g.enabled && g.followers.length > 0) ?? [];
   }
 
   private roleOf(
     zone: ZoneId,
   ):
-    | { role: 'master'; group: MirrorGroup }
-    | { role: 'child'; group: MirrorGroup; child: MirrorGroup['children'][number] }
+    | { role: 'primary'; group: MirrorGroup }
+    | { role: 'follower'; group: MirrorGroup; follower: MirrorGroup['followers'][number] }
     | undefined {
     for (const group of this.config?.mirrors ?? []) {
-      if (group.master === zone) return { role: 'master', group };
-      const child = group.children.find((c) => c.zone === zone);
-      if (child) return { role: 'child', group, child };
+      if (group.primary === zone) return { role: 'primary', group };
+      const follower = group.followers.find((c) => c.zone === zone);
+      if (follower) return { role: 'follower', group, follower };
     }
     return undefined;
   }
@@ -630,7 +638,7 @@ export class Controller {
     const current = this.cache.get(state.zone)!;
     if (changes === null) {
       // First read since start or reconnect: report it, but don't judge
-      // mirror children on it — syncGroup brings them in line explicitly.
+      // mirror followers on it — syncGroup brings them in line explicitly.
       const { pa, keypad } = state;
       this.emit({
         type: 'zone.changed',
@@ -660,13 +668,13 @@ export class Controller {
   ): Promise<void> {
     const role = this.roleOf(zone);
     if (!role?.group.enabled) return;
-    if (role.role === 'master') {
+    if (role.role === 'primary') {
       const settable = Object.keys(changes).filter((k) => k !== 'pa' && k !== 'keypad');
       if (settable.length > 0) {
-        await this.fanOut(role.group.id, { reReadChildren: changes.power === true });
+        await this.fanOut(role.group.id, { reReadFollowers: changes.power === true });
       }
     } else if (origin !== 'mirror') {
-      await this.auditChild(role.group.id, zone);
+      await this.auditFollower(role.group.id, zone);
     }
   }
 
@@ -696,7 +704,7 @@ export class Controller {
       }
     }
     // Mirror fan-out runs in the background: the caller gets its answer as
-    // soon as its own zone is written; children follow immediately after.
+    // soon as its own zone is written; followers follow immediately after.
     this.track(this.reactToChange(zone, changes as ZonePatch, origin));
   }
 
