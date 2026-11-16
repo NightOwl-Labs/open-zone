@@ -5,3 +5,7 @@ coverage/
 .env
 .DS_Store
 /data/
+
+# Hardware probe output (may contain serial numbers / host details)
+oz-probe-report-*
+/hardware-reports/
