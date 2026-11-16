@@ -3,6 +3,7 @@ import type { PollingConfig } from '@open-zone/shared';
 import { api } from './api.ts';
 import { Icon, NameInput, StatusPill, Toggle } from './components.tsx';
 import { sourceLabel, zoneLabel } from './format.ts';
+import { DESIGNS, design } from './design.ts';
 import { run, setDensity, toast, useApp, type Density } from './store.ts';
 
 function Connection() {
@@ -288,6 +289,30 @@ function HomeAndDisplay() {
           ))}
         </div>
         <span className="muted-text small">Saved on this device only.</span>
+      </div>
+      <div className="field">
+        <span>Design</span>
+        <ul className="design-list">
+          {DESIGNS.map((d) => (
+            <li key={d.id}>
+              <a
+                href={`${d.root}#settings`}
+                className={`design-option${d.id === design ? ' active' : ''}`}
+                aria-current={d.id === design ? 'page' : undefined}
+              >
+                <span className="design-swatch" data-swatch={d.id} aria-hidden />
+                <span>
+                  <b>{d.label}</b>
+                  <span className="muted-text small">{d.blurb}</span>
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+        <span className="muted-text small">
+          Each design has its own address (e.g. /console), so a wall tablet can bookmark one and
+          your phone another. Everything works the same in all of them.
+        </span>
       </div>
     </section>
   );

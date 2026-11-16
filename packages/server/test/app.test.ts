@@ -142,6 +142,17 @@ describe('REST API', () => {
     expect(emulator.getZone(21)).toMatchObject({ volume: 30, keypad: true });
   });
 
+  it('serves a manifest per design root', async () => {
+    const { app } = await setup();
+    const m = await app.inject({ url: '/api/v1/manifest.webmanifest?root=/console/' });
+    expect(m.headers['content-type']).toMatch(/manifest\+json/);
+    expect(m.json()).toMatchObject({ start_url: '/console/', scope: '/console/' });
+    const bad = await app.inject({
+      url: '/api/v1/manifest.webmanifest?root=https://evil.example/',
+    });
+    expect(bad.json().start_url).toBe('/');
+  });
+
   it('updates the home name', async () => {
     const { app } = await setup();
     const res = await json(app, 'PATCH', '/config', { home: { name: 'Lake House' } });

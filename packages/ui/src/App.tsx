@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Icon, StatusPill, Toasts } from './components.tsx';
 import { MirrorsPage } from './MirrorsPage.tsx';
 import { SettingsPage } from './SettingsPage.tsx';
+import { design } from './design.ts';
 import { connect, refresh, useApp } from './store.ts';
 import { ZonesPage } from './ZonesPage.tsx';
 
@@ -52,7 +53,9 @@ export function App() {
         <StatusPill />
       </header>
       <main>
-        {tab === 'zones' && <ZonesPage open={openZone} onOpen={setOpenZone} onClose={closeZone} />}
+        {tab === 'zones' && (
+          <ZonesPage design={design} open={openZone} onOpen={setOpenZone} onClose={closeZone} />
+        )}
         {tab === 'mirrors' && <MirrorsPage />}
         {tab === 'settings' && <SettingsPage />}
       </main>

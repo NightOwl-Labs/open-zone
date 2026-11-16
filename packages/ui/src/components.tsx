@@ -73,6 +73,8 @@ export function Slider({
   label,
   format,
   disabled,
+  vertical,
+  hideValue,
 }: {
   value: number;
   min: number;
@@ -81,6 +83,9 @@ export function Slider({
   label: string;
   format?: (v: number) => string;
   disabled?: boolean;
+  /** Render as a vertical fader (the input is rotated; drag up to increase). */
+  vertical?: boolean;
+  hideValue?: boolean;
 }) {
   const [local, setLocal] = useState<number | null>(null);
   const throttle = useThrottle(onCommit, 150);
@@ -91,7 +96,7 @@ export function Slider({
   };
   const pct = ((shown - min) / (max - min)) * 100;
   return (
-    <div className="slider">
+    <div className={`slider${vertical ? ' vertical' : ''}`}>
       <input
         type="range"
         min={min}
@@ -112,7 +117,7 @@ export function Slider({
         onKeyUp={end}
         onBlur={() => local !== null && end()}
       />
-      <output className="slider-value">{format ? format(shown) : shown}</output>
+      {!hideValue && <output className="slider-value">{format ? format(shown) : shown}</output>}
     </div>
   );
 }
@@ -226,7 +231,61 @@ export function NameInput({
   );
 }
 
-const ICONS: Record<string, ReactNode> = {
+const ICONS = {
+  power: (
+    <>
+      <path d="M12 3v8" />
+      <path d="M6.3 7.3a8 8 0 1 0 11.4 0" />
+    </>
+  ),
+  minus: <path d="M5 12h14" />,
+  tv: (
+    <>
+      <rect x="3" y="5" width="18" height="12" rx="2" />
+      <path d="M8 21h8M12 17v4" />
+    </>
+  ),
+  music: (
+    <>
+      <path d="M9 18V5l11-2v13" />
+      <circle cx="6" cy="18" r="3" />
+      <circle cx="17" cy="16" r="3" />
+    </>
+  ),
+  disc: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="2.5" />
+    </>
+  ),
+  radio: (
+    <>
+      <rect x="3" y="8" width="18" height="12" rx="2" />
+      <path d="M7 8l10-4" />
+      <circle cx="15.5" cy="14" r="2.5" />
+      <path d="M6 12h4M6 16h4" />
+    </>
+  ),
+  game: (
+    <>
+      <path d="M6 9h12a4 4 0 0 1 3.9 4.8l-.6 3A2.5 2.5 0 0 1 17 18l-2-2H9l-2 2a2.5 2.5 0 0 1-4.3-1.2l-.6-3A4 4 0 0 1 6 9z" />
+      <path d="M8 12v3M6.5 13.5h3M15.5 13h.01M17.5 15h.01" />
+    </>
+  ),
+  bluetooth: <path d="M7 7l10 10-5 4V3l5 4L7 17" />,
+  mic: (
+    <>
+      <rect x="9" y="3" width="6" height="11" rx="3" />
+      <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+    </>
+  ),
+  input: (
+    <>
+      <path d="M10 17l5-5-5-5" />
+      <path d="M15 12H3" />
+      <path d="M15 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4" />
+    </>
+  ),
   zones: (
     <>
       <path d="M5 15V9M10 18V6M15 15V9M20 13v-2" />
@@ -274,7 +333,9 @@ const ICONS: Record<string, ReactNode> = {
   ),
 };
 
-export function Icon({ name }: { name: keyof typeof ICONS }) {
+export type IconName = keyof typeof ICONS;
+
+export function Icon({ name }: { name: IconName }) {
   return (
     <svg
       className="icon"

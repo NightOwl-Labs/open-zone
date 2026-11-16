@@ -170,6 +170,26 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
         });
       });
 
+      // Web app manifest per design root, so a home-screen install reopens that design.
+      api.get('/manifest.webmanifest', async (req, reply) => {
+        const roots = ['/', '/studio/', '/console/', '/tiles/'];
+        const q = req.query as { root?: string };
+        const root = q.root && roots.includes(q.root) ? q.root : '/';
+        const home = controller.getConfig().home.name;
+        const label = home ?? 'open-zone';
+        return reply.type('application/manifest+json').send({
+          name: label,
+          short_name: label.slice(0, 12),
+          description: 'Multi-zone audio control',
+          start_url: root,
+          scope: root,
+          display: 'standalone',
+          background_color: '#0f1115',
+          theme_color: '#0f1115',
+          icons: [{ src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }],
+        });
+      });
+
       api.get('/serial-ports', async () => (simulator ? [] : listSerialPorts()));
 
       api.post('/simulator/keypad', async (req, reply) => {

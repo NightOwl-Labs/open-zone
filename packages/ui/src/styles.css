@@ -16,6 +16,7 @@
   /* density tokens (normal); overridden by [data-density] below */
   --tap: 44px;
   --card-pad: 14px;
+  --pad-x: 14px; /* single-value horizontal padding for calc() */
   --card-gap: 10px;
   --name-size: 17px;
   --sub-size: 14px;
@@ -108,6 +109,7 @@ button {
   --radius: 12px;
   --tap: 34px;
   --card-pad: 8px 12px;
+  --pad-x: 12px;
   --card-gap: 4px;
   --name-size: 15px;
   --sub-size: 12px;
@@ -126,6 +128,7 @@ button {
   --radius: 22px;
   --tap: 64px;
   --card-pad: 22px;
+  --pad-x: 22px;
   --card-gap: 18px;
   --name-size: 26px;
   --sub-size: 19px;

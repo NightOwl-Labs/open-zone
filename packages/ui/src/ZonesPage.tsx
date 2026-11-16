@@ -1,108 +1,22 @@
-import type { SourceView, ZonePatch, ZoneView } from '@open-zone/shared';
-import { api } from './api.ts';
-import { Icon, NameInput, Sheet, Slider, Toggle } from './components.tsx';
+import type { ZoneView } from '@open-zone/shared';
+import { ConsoleStrip } from './designs/ConsoleZones.tsx';
+import { StudioRow } from './designs/StudioZones.tsx';
+import { RoomTile } from './designs/TilesZones.tsx';
+import type { Design } from './design.ts';
+import { Toggle } from './components.tsx';
+import { roleOf, sourceLabel, zoneLabel } from './format.ts';
+import { useApp } from './store.ts';
 import {
-  balanceLabel,
-  groupLabel,
-  offsetLabel,
-  roleOf,
-  sourceLabel,
-  toneLabel,
-  zoneLabel,
-  type Role,
-} from './format.ts';
-import { run, setZone, useApp } from './store.ts';
+  FollowingLine,
+  RoleBadge,
+  SourceSelect,
+  VolumeRow,
+  ZoneDetail,
+  change,
+  isFollowing,
+} from './zoneParts.tsx';
 
-function change(z: ZoneView, patch: ZonePatch): void {
-  void setZone(z.zone, patch);
-}
-
-/** A follower of an enabled mirror is driven by its primary: no controls of its own. */
-function isFollowing(role: Role): role is Extract<NonNullable<Role>, { kind: 'follower' }> {
-  return role?.kind === 'follower' && role.group.enabled;
-}
-
-function FollowingLine({ role, zones }: { role: Role; zones: ZoneView[] }) {
-  if (!isFollowing(role)) return null;
-  const primary = zones.find((z) => z.zone === role.group.primary);
-  return (
-    <span className="badge follower">
-      <Icon name="link" />
-      Following {primary ? zoneLabel(primary) : `Zone ${role.group.primary}`}
-      {role.volumeOffset ? ` · volume ${offsetLabel(role.volumeOffset)}` : ''}
-    </span>
-  );
-}
-
-function RoleBadge({ role, zones }: { role: Role; zones: ZoneView[] }) {
-  if (!role) return null;
-  if (role.kind === 'follower') {
-    // Paused group: the zone is independent again, just note the membership.
-    return role.group.enabled ? null : (
-      <span className="badge follower paused">
-        <Icon name="link" />
-        {groupLabel(role.group, zones)} · paused
-      </span>
-    );
-  }
-  const n = role.group.followers.length;
-  return (
-    <span className={`badge primary${role.group.enabled ? '' : ' paused'}`}>
-      <Icon name="link" />
-      {groupLabel(role.group, zones)} · leads {n} {n === 1 ? 'zone' : 'zones'}
-      {role.group.enabled ? '' : ' · paused'}
-    </span>
-  );
-}
-
-/** Enabled sources, plus the zone's current source if it has been disabled. */
-function SourceSelect({ z, sources }: { z: ZoneView; sources: SourceView[] }) {
-  if (!z.state) return null;
-  const current = z.state.source;
-  const options = sources.filter((s) => s.enabled || s.source === current);
-  return (
-    <select
-      className="select"
-      aria-label={`${zoneLabel(z)} source`}
-      value={current}
-      onChange={(e) => change(z, { source: Number(e.currentTarget.value) })}
-    >
-      {options.map((s) => (
-        <option key={s.source} value={s.source} disabled={!s.enabled}>
-          {sourceLabel(sources, s.source)}
-          {s.enabled ? '' : ' (disabled)'}
-        </option>
-      ))}
-    </select>
-  );
-}
-
-function VolumeRow({ z }: { z: ZoneView }) {
-  if (!z.state) return null;
-  const s = z.state;
-  return (
-    <div className="vol-row">
-      <button
-        type="button"
-        className={`icon-btn${s.mute ? ' active' : ''}`}
-        aria-label={s.mute ? 'Unmute' : 'Mute'}
-        aria-pressed={s.mute}
-        onClick={() => change(z, { mute: !s.mute })}
-      >
-        <Icon name={s.mute ? 'muted' : 'speaker'} />
-      </button>
-      <Slider
-        label={`${zoneLabel(z)} volume`}
-        value={s.volume}
-        min={0}
-        max={38}
-        onCommit={(v) => change(z, { volume: v })}
-      />
-    </div>
-  );
-}
-
-function ZoneCard({ z, onOpen }: { z: ZoneView; onOpen: () => void }) {
+function ClassicCard({ z, onOpen }: { z: ZoneView; onOpen: () => void }) {
   const sources = useApp((s) => s.sources);
   const mirrors = useApp((s) => s.mirrors);
   const zones = useApp((s) => s.zones);
@@ -147,131 +61,25 @@ function ZoneCard({ z, onOpen }: { z: ZoneView; onOpen: () => void }) {
   );
 }
 
-function ZoneDetail({ zone, onClose }: { zone: number; onClose: () => void }) {
-  const z = useApp((s) => s.zones).find((x) => x.zone === zone);
-  const sources = useApp((s) => s.sources);
-  const mirrors = useApp((s) => s.mirrors);
-  const zones = useApp((s) => s.zones);
-  if (!z) return null;
-  const role = roleOf(zone, mirrors);
-  const following = isFollowing(role);
-  const s = z.state;
-  return (
-    <Sheet title={zoneLabel(z)} onClose={onClose}>
-      {following ? (
-        <p className="note">
-          <FollowingLine role={role} zones={zones} />
-          <br />
-          This zone copies its primary. To control it on its own, remove it from the mirror or pause
-          the mirror on the Mirrors tab. The volume offset is set there too.
-        </p>
-      ) : (
-        role && (
-          <p className="note">
-            <RoleBadge role={role} zones={zones} />
-          </p>
-        )
-      )}
-      {!s ? (
-        <p className="muted-text">This zone hasn&apos;t been read from the amp yet.</p>
-      ) : (
-        !following && (
-          <>
-            <div className="field-row">
-              <span>Power</span>
-              <Toggle label="Power" checked={s.power} onChange={(v) => change(z, { power: v })} />
-            </div>
-            <div className="field">
-              <span>Source</span>
-              <SourceSelect z={z} sources={sources} />
-            </div>
-            <div className="field">
-              <span>Volume</span>
-              <VolumeRow z={z} />
-            </div>
-            <div className="field">
-              <span>Treble</span>
-              <Slider
-                label="Treble"
-                value={s.treble}
-                min={0}
-                max={14}
-                format={(v) => toneLabel(v)}
-                onCommit={(v) => change(z, { treble: v })}
-              />
-            </div>
-            <div className="field">
-              <span>Bass</span>
-              <Slider
-                label="Bass"
-                value={s.bass}
-                min={0}
-                max={14}
-                format={(v) => toneLabel(v)}
-                onCommit={(v) => change(z, { bass: v })}
-              />
-            </div>
-            <div className="field">
-              <span>Balance</span>
-              <Slider
-                label="Balance"
-                value={s.balance}
-                min={0}
-                max={20}
-                format={balanceLabel}
-                onCommit={(v) => change(z, { balance: v })}
-              />
-            </div>
-            <div className="field-row">
-              <span>Do not disturb</span>
-              <Toggle
-                label="Do not disturb"
-                checked={s.dnd}
-                onChange={(v) => change(z, { dnd: v })}
-              />
-            </div>
-          </>
-        )
-      )}
-      <div className="field">
-        <span>Name</span>
-        <NameInput
-          label="Zone name"
-          value={z.name}
-          placeholder={`Zone ${z.zone}`}
-          onSave={(name) => void run(() => api.updateZone(z.zone, { name }))}
-        />
-      </div>
-      <dl className="facts">
-        <dt>Zone</dt>
-        <dd>
-          {z.zone} (unit {Math.floor(z.zone / 10)})
-        </dd>
-        {s && (
-          <>
-            <dt>Now</dt>
-            <dd>
-              {s.power ? 'On' : 'Off'} · {sourceLabel(sources, s.source)} · volume {s.volume}
-              {s.mute ? ' · muted' : ''}
-            </dd>
-          </>
-        )}
-        <dt>Wall keypad</dt>
-        <dd>{s ? (s.keypad ? 'Connected' : 'None') : '—'}</dd>
-        <dt>PA input</dt>
-        <dd>{s ? (s.pa ? 'Active' : 'Idle') : '—'}</dd>
-        <dt>Last read</dt>
-        <dd>{z.updatedAt ? new Date(z.updatedAt).toLocaleTimeString() : '—'}</dd>
-      </dl>
-    </Sheet>
-  );
+export interface ZoneItemProps {
+  z: ZoneView;
+  onOpen: () => void;
 }
 
+const ITEM: Record<Design, (p: ZoneItemProps) => React.ReactNode> = {
+  classic: ClassicCard,
+  studio: StudioRow,
+  console: ConsoleStrip,
+  tiles: RoomTile,
+};
+
 export function ZonesPage({
+  design,
   open,
   onOpen,
   onClose,
 }: {
+  design: Design;
   open: number | null;
   onOpen: (zone: number) => void;
   onClose: () => void;
@@ -305,11 +113,14 @@ export function ZonesPage({
       {units.map((u) => (
         <section key={u} className="group">
           {units.length > 1 && <h3 className="group-title">Unit {u}</h3>}
-          {zones
-            .filter((z) => Math.floor(z.zone / 10) === u)
-            .map((z) => (
-              <ZoneCard key={z.zone} z={z} onOpen={() => onOpen(z.zone)} />
-            ))}
+          <div className={`zone-list zone-list-${design}`}>
+            {zones
+              .filter((z) => Math.floor(z.zone / 10) === u)
+              .map((z) => {
+                const Item = ITEM[design];
+                return <Item key={z.zone} z={z} onOpen={() => onOpen(z.zone)} />;
+              })}
+          </div>
         </section>
       ))}
       {open !== null && <ZoneDetail zone={open} onClose={onClose} />}

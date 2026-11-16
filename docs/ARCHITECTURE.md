@@ -298,6 +298,19 @@ SQLite would be over-engineered for a few KB of config. The `ConfigStore` interf
 
 ---
 
+### Designs
+
+The UI ships several designs that share all state, actions and screens; only the layout and styling differ. Each has its own root, so a device can bookmark (or install) the one it suits:
+
+| Root       | Design  | Character                                                                              |
+| ---------- | ------- | -------------------------------------------------------------------------------------- |
+| `/`        | Classic | The original functional-test layout                                                    |
+| `/studio`  | Studio  | Warm light-first list, source icons and chips, terracotta accent                       |
+| `/console` | Console | Dark mixing desk: channel strips, vertical faders, LED readouts; good for wall tablets |
+| `/tiles`   | Tiles   | Room tiles tinted by source, volume gauges, quick −/mute/+; floating tab bar           |
+
+Shared behavior lives in `zoneParts.tsx` (commands, badges, source/volume controls, zone detail sheet). A design adds a zone layout in `designs/` and CSS scoped to `:root[data-design=…]`. The web-app manifest is served per root (`/api/v1/manifest.webmanifest?root=`), so a home-screen install reopens the same design.
+
 ## 12. Repository layout
 
 ```
