@@ -113,10 +113,11 @@ export class MonopriceEmulator {
     switch (cmd.kind) {
       case 'queryZone': {
         const z = this.zones.get(cmd.zone);
-        return z ? `${echo}\r\n#${formatStatus(z)}\r\r\n#` : '';
+        // Real hardware (oz-probe): a missing zone gets the echo and a prompt only.
+        return z ? `${echo}\r\n#${formatStatus(z)}\r\r\n#` : `${echo}\r\n#`;
       }
       case 'queryUnit': {
-        if (cmd.unit < 1 || cmd.unit > this.units) return '';
+        if (cmd.unit < 1 || cmd.unit > this.units) return `${echo}\r\n#`;
         let out = echo;
         for (let i = 1; i <= MONOPRICE_10761.zonesPerUnit; i++) {
           out += `\r\n#${formatStatus(this.zones.get(cmd.unit * 10 + i)!)}\r`;

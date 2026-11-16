@@ -2,12 +2,15 @@ import type { ConnectionStatus } from './events.ts';
 import type { ModelDescriptor, SourceId, UnitId, ZoneId, ZoneState } from './model.ts';
 
 export type MirrorRole =
-  { groupId: string; role: 'master' } | { groupId: string; role: 'child'; volumeOffset: number };
+  | { groupId: string; role: 'primary' }
+  | { groupId: string; role: 'follower'; volumeOffset: number };
 
 /** A zone as presented to API consumers. */
 export interface ZoneView {
   zone: ZoneId;
   name: string | null;
+  /** False for zones marked unused (no speakers). Hidden from controls. */
+  enabled: boolean;
   /** Last known hardware state; null until the zone has been read. */
   state: ZoneState | null;
   /** Epoch ms of the last successful read or acknowledged write. */
@@ -18,6 +21,8 @@ export interface ZoneView {
 export interface SourceView {
   source: SourceId;
   name: string | null;
+  /** False when hidden from source pickers. The amp cannot report which inputs are connected. */
+  enabled: boolean;
 }
 
 export interface QueueStats {
@@ -36,4 +41,6 @@ export interface SystemView {
   units: UnitId[];
   queue: QueueStats;
   polling: { mirrorActive: boolean; interactiveClients: number };
+  /** True when running against the built-in emulator instead of hardware. */
+  simulator?: boolean;
 }

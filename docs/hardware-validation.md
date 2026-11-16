@@ -11,7 +11,7 @@
 | 3   | Does the amp echo commands and end each response with a `#` prompt? | The driver uses these to tell when a response is complete                           |
 | 4   | Does the batch query `?10` return all 6 zones?                      | If not, the driver falls back to per-zone queries                                   |
 | 5   | Which stacked units answer, and what does a missing unit send back? | Unit discovery                                                                      |
-| 6   | Does the keypad (LS) field match the keypads physically installed?  | Mirror setup refuses to use zones with a keypad as children                         |
+| 6   | Does the keypad (LS) field match the keypads physically installed?  | Mirror setup refuses to use zones with a keypad as followers                        |
 | 7   | How long do zone, unit and full-sweep queries take?                 | Poll intervals and how much of the serial line they use                             |
 | 8   | What is the smallest safe gap between commands?                     | The `queue.interCommandGapMs` default                                               |
 | 9   | What does a set command send back, and how fast?                    | How the driver detects that a write was accepted                                    |
@@ -41,17 +41,17 @@
    ```sh
    sudo usermod -aG dialout $USER
    ```
-4. Get the code. Only runtime dependencies are needed; there is no build step:
+4. Get the code and install it (see [getting-started-pi.md](getting-started-pi.md) for details):
    ```sh
    git clone https://github.com/NightOwl-Labs/open-zone.git
    cd open-zone
-   npm ci --omit=dev
+   ./scripts/install.sh
    ```
-   You may see an `install-scripts` warning for `@serialport/bindings-cpp`. It is harmless: prebuilt arm64 binaries ship with the package, so nothing needs compiling.
+   The probe alone needs only the runtime dependencies, so `npm ci --omit=dev` is enough if you want to skip building the UI.
 
 ## Run the probe
 
-1. Plug the USB-serial adapter into the Pi and the cable into the RS-232 port of the **master** amplifier (unit 1). Power the amp on.
+1. Plug the USB-serial adapter into the Pi and the cable into the RS-232 port of **unit 1**, the main amplifier. Power the amp on.
 2. Check that the adapter was detected:
    ```sh
    ls /dev/ttyUSB* /dev/ttyACM*
@@ -71,12 +71,12 @@
 
 ## If it can't talk to the amp
 
-| Symptom                            | Try                                                                                                                                                                                                            |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Cannot open … EACCES`             | You're not in `dialout` yet. Log out and back in after step 3.                                                                                                                                                 |
-| `Cannot open … EBUSY`              | Another program has the port open. Check `sudo lsof /dev/ttyUSB0`; if ModemManager is installed, run `sudo systemctl disable --now ModemManager`.                                                              |
-| No response at any baud rate       | Is the amp on, and is the cable in the master unit's RS-232 port? TX and RX may need crossing: if you're using a straight-through cable, add a null-modem adapter, and if you're already using one, remove it. |
-| Bytes received but no valid status | Wrong baud rate or a noisy cable. The raw capture in the report shows exactly what came back.                                                                                                                  |
+| Symptom                            | Try                                                                                                                                                                                                   |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Cannot open … EACCES`             | You're not in `dialout` yet. Log out and back in after step 3.                                                                                                                                        |
+| `Cannot open … EBUSY`              | Another program has the port open. Check `sudo lsof /dev/ttyUSB0`; if ModemManager is installed, run `sudo systemctl disable --now ModemManager`.                                                     |
+| No response at any baud rate       | Is the amp on, and is the cable in unit 1's RS-232 port? TX and RX may need crossing: if you're using a straight-through cable, add a null-modem adapter, and if you're already using one, remove it. |
+| Bytes received but no valid status | Wrong baud rate or a noisy cable. The raw capture in the report shows exactly what came back.                                                                                                         |
 
 ## Dry run without hardware
 

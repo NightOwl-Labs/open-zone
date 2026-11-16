@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { MirrorGroup, ZoneState } from '@open-zone/shared';
 import { MONOPRICE_10761 as model } from '@open-zone/drivers';
 import {
-  evaluateChild,
-  expectedChildSettings,
+  evaluateFollower,
+  expectedFollowerSettings,
   orderWrites,
   validateGroupShape,
 } from '../src/index.ts';
@@ -23,50 +23,54 @@ const zone = (z: number, over: Partial<ZoneState> = {}): ZoneState => ({
   ...over,
 });
 
-describe('expectedChildSettings', () => {
-  it('copies the master and applies a clamped volume offset', () => {
-    expect(expectedChildSettings(model, zone(11), 5).volume).toBe(25);
-    expect(expectedChildSettings(model, zone(11, { volume: 36 }), 5).volume).toBe(38);
-    expect(expectedChildSettings(model, zone(11, { volume: 2 }), -5).volume).toBe(0);
-    expect(expectedChildSettings(model, zone(11), 0)).not.toHaveProperty('keypad');
+describe('expectedFollowerSettings', () => {
+  it('copies the primary and applies a clamped volume offset', () => {
+    expect(expectedFollowerSettings(model, zone(11), 5).volume).toBe(25);
+    expect(expectedFollowerSettings(model, zone(11, { volume: 36 }), 5).volume).toBe(38);
+    expect(expectedFollowerSettings(model, zone(11, { volume: 2 }), -5).volume).toBe(0);
+    expect(expectedFollowerSettings(model, zone(11), 0)).not.toHaveProperty('keypad');
   });
 });
 
-describe('evaluateChild', () => {
-  const master = zone(11);
-  it('is in sync when the child matches', () => {
-    expect(evaluateChild(model, master, zone(12), 0)).toEqual({ kind: 'in-sync' });
-    expect(evaluateChild(model, master, zone(12, { volume: 24 }), 4)).toEqual({ kind: 'in-sync' });
+describe('evaluateFollower', () => {
+  const primary = zone(11);
+  it('is in sync when the follower matches', () => {
+    expect(evaluateFollower(model, primary, zone(12), 0)).toEqual({ kind: 'in-sync' });
+    expect(evaluateFollower(model, primary, zone(12, { volume: 24 }), 4)).toEqual({
+      kind: 'in-sync',
+    });
   });
   it('learns an offset when only volume differs', () => {
-    expect(evaluateChild(model, master, zone(12, { volume: 15 }), 0)).toEqual({
+    expect(evaluateFollower(model, primary, zone(12, { volume: 15 }), 0)).toEqual({
       kind: 'offset',
       volumeOffset: -5,
     });
   });
   it('detaches when anything else differs', () => {
-    expect(evaluateChild(model, master, zone(12, { source: 4, volume: 30 }), 0)).toEqual({
+    expect(evaluateFollower(model, primary, zone(12, { source: 4, volume: 30 }), 0)).toEqual({
       kind: 'detach',
       reason: 'property-changed',
       property: 'source',
     });
   });
   it('detaches when a keypad appears', () => {
-    expect(evaluateChild(model, master, zone(12, { keypad: true }), 0)).toMatchObject({
+    expect(evaluateFollower(model, primary, zone(12, { keypad: true }), 0)).toMatchObject({
       reason: 'keypad-detected',
     });
   });
   it('ignores properties with writes in flight', () => {
-    expect(evaluateChild(model, master, zone(12, { source: 4 }), 0, ['source'])).toEqual({
+    expect(evaluateFollower(model, primary, zone(12, { source: 4 }), 0, ['source'])).toEqual({
       kind: 'in-sync',
     });
   });
   it('only compares power while both zones are off', () => {
     const off = zone(11, { power: false });
-    expect(evaluateChild(model, off, zone(12, { power: false, source: 5, volume: 3 }), 0)).toEqual({
+    expect(
+      evaluateFollower(model, off, zone(12, { power: false, source: 5, volume: 3 }), 0),
+    ).toEqual({
       kind: 'in-sync',
     });
-    expect(evaluateChild(model, off, zone(12, { power: true }), 0)).toMatchObject({
+    expect(evaluateFollower(model, off, zone(12, { power: true }), 0)).toMatchObject({
       kind: 'detach',
       property: 'power',
     });
@@ -86,13 +90,13 @@ describe('orderWrites', () => {
 
 describe('validateGroupShape', () => {
   const existing: MirrorGroup[] = [
-    { id: 'a', enabled: true, master: 21, children: [{ zone: 22, volumeOffset: 0 }] },
+    { id: 'a', enabled: true, primary: 21, followers: [{ zone: 22, volumeOffset: 0 }] },
   ];
-  const v = (master: number, children: number[], id = 'new') =>
+  const v = (primary: number, followers: number[], id = 'new') =>
     validateGroupShape(
       model,
       [1, 2],
-      { id, master, children: children.map((zone) => ({ zone, volumeOffset: 0 })) },
+      { id, primary, followers: followers.map((zone) => ({ zone, volumeOffset: 0 })) },
       existing,
     );
 

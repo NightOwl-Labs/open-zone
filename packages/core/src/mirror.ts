@@ -19,49 +19,49 @@ import {
   unitOf,
 } from '@open-zone/shared';
 
-/** What a child zone should be set to, given its master and learned volume offset. */
-export function expectedChildSettings(
+/** What a follower zone should be set to, given its primary and learned volume offset. */
+export function expectedFollowerSettings(
   model: ModelDescriptor,
-  master: ZoneSettings,
+  primary: ZoneSettings,
   volumeOffset: number,
 ): ZoneSettings {
   return {
-    ...settingsOf(master as ZoneState),
-    volume: clampProp(model, 'volume', master.volume + volumeOffset),
+    ...settingsOf(primary as ZoneState),
+    volume: clampProp(model, 'volume', primary.volume + volumeOffset),
   };
 }
 
-export type ChildVerdict =
+export type FollowerVerdict =
   | { kind: 'in-sync' }
   | { kind: 'offset'; volumeOffset: number }
   | { kind: 'detach'; reason: DetachReason; property?: SettableProp };
 
 /**
- * Backup rule for a child that changed outside the mirror (the setup check
- * should prevent this, since children have no keypad):
+ * Backup rule for a follower that changed outside the mirror (the setup check
+ * should prevent this, since followers have no keypad):
  *   - a keypad shows up             → detach
  *   - only volume differs           → learn a new volume offset
  *   - anything else differs         → detach
- * Properties with writes still in flight are ignored. While both master and
- * child are powered off only power is compared — amps may ignore or not
+ * Properties with writes still in flight are ignored. While both primary and
+ * follower are powered off only power is compared — amps may ignore or not
  * report other settings on an idle zone.
  */
-export function evaluateChild(
+export function evaluateFollower(
   model: ModelDescriptor,
-  master: ZoneState,
-  child: ZoneState,
+  primary: ZoneState,
+  follower: ZoneState,
   volumeOffset: number,
   ignore: readonly SettableProp[] = [],
-): ChildVerdict {
-  if (child.keypad) return { kind: 'detach', reason: 'keypad-detected' };
-  const expected = expectedChildSettings(model, master, volumeOffset);
-  if (!expected.power && !child.power) return { kind: 'in-sync' };
-  const diff = diffSettings(settingsOf(child), expected);
+): FollowerVerdict {
+  if (follower.keypad) return { kind: 'detach', reason: 'keypad-detected' };
+  const expected = expectedFollowerSettings(model, primary, volumeOffset);
+  if (!expected.power && !follower.power) return { kind: 'in-sync' };
+  const diff = diffSettings(settingsOf(follower), expected);
   const props = (Object.keys(diff) as SettableProp[]).filter((p) => !ignore.includes(p));
   if (props.length === 0) return { kind: 'in-sync' };
   const other = props.find((p) => p !== 'volume');
   if (other) return { kind: 'detach', reason: 'property-changed', property: other };
-  return { kind: 'offset', volumeOffset: child.volume - master.volume };
+  return { kind: 'offset', volumeOffset: follower.volume - primary.volume };
 }
 
 /**
@@ -91,21 +91,21 @@ export class MirrorValidationError extends Error {
 export function validateGroupShape(
   model: ModelDescriptor,
   units: readonly UnitId[],
-  candidate: Pick<MirrorGroup, 'id' | 'master' | 'children'>,
+  candidate: Pick<MirrorGroup, 'id' | 'primary' | 'followers'>,
   others: readonly MirrorGroup[],
 ): string[] {
   const issues: string[] = [];
   const installed = (z: ZoneId) => isValidZone(model, z) && units.includes(unitOf(z));
-  const zones = [candidate.master, ...candidate.children.map((c) => c.zone)];
+  const zones = [candidate.primary, ...candidate.followers.map((c) => c.zone)];
   for (const z of zones) if (!installed(z)) issues.push(`zone ${z} is not an installed zone`);
-  if (candidate.children.some((c) => c.zone === candidate.master)) {
+  if (candidate.followers.some((c) => c.zone === candidate.primary)) {
     issues.push('a zone cannot mirror itself');
   }
-  const childZones = candidate.children.map((c) => c.zone);
-  if (new Set(childZones).size !== childZones.length) issues.push('duplicate child zones');
+  const followerZones = candidate.followers.map((c) => c.zone);
+  if (new Set(followerZones).size !== followerZones.length) issues.push('duplicate follower zones');
   for (const g of others) {
     if (g.id === candidate.id) continue;
-    const taken = new Set([g.master, ...g.children.map((c) => c.zone)]);
+    const taken = new Set([g.primary, ...g.followers.map((c) => c.zone)]);
     for (const z of zones) {
       if (taken.has(z)) issues.push(`zone ${z} already belongs to mirror group ${g.id}`);
     }

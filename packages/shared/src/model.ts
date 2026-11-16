@@ -75,6 +75,11 @@ export interface ModelDescriptor {
   maxUnits: number;
   zonesPerUnit: number;
   sourceCount: number;
+  /** Hardware behaviors the controller must work around. */
+  quirks?: {
+    /** Set commands (other than power) sent to a powered-off zone are acknowledged but ignored. */
+    ignoresSetsWhenOff?: boolean;
+  };
   properties: { [K in BoolProp]: BoolSpec } & { [K in IntProp]: IntSpec };
 }
 

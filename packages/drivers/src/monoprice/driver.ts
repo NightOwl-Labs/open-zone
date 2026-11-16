@@ -1,5 +1,6 @@
 import {
   DriverTimeoutError,
+  ZoneNotPresentError,
   zonesForUnit,
   type AmpDriver,
   type ModelDescriptor,
@@ -26,6 +27,18 @@ export interface MonopriceDriverOptions {
   useUnitQuery?: boolean;
   /** Raw traffic tap for diagnostics. */
   onTraffic?: (direction: 'tx' | 'rx', data: string) => void;
+}
+
+/**
+ * How long the line must stay quiet before an echo + "#" with no status record
+ * is taken to mean "no such zone". Status records arrive within ~16 ms of the
+ * prompt (FTDI latency timer), so this leaves a wide margin.
+ */
+const ABSENT_QUIET_MS = 80;
+
+/** Echo and prompt, but no status record: the amp has no such zone or unit. */
+function onlyEchoAndPrompt(buf: string): boolean {
+  return buf.includes('#') && !buf.includes('>');
 }
 
 /** True when a "#" prompt follows the last status record (the response is complete). */
@@ -91,7 +104,7 @@ export class MonopriceDriver implements AmpDriver {
         await this.queryZone(unit * 10 + 1);
         found.push(unit);
       } catch (err) {
-        if (!(err instanceof DriverTimeoutError)) throw err;
+        if (!(err instanceof ZoneNotPresentError || err instanceof DriverTimeoutError)) throw err;
       }
     }
     return found;
@@ -103,6 +116,7 @@ export class MonopriceDriver implements AmpDriver {
       formatZoneQuery(zone),
       (buf) => (promptAfterLastStatus(buf) ? find(buf) : undefined),
       find,
+      (buf, cmd) => (onlyEchoAndPrompt(buf) ? new ZoneNotPresentError(cmd) : undefined),
     );
   }
 
@@ -121,6 +135,7 @@ export class MonopriceDriver implements AmpDriver {
       formatUnitQuery(unit),
       (buf) => (promptAfterLastStatus(buf) ? collect(buf) : undefined),
       collect,
+      (buf, cmd) => (onlyEchoAndPrompt(buf) ? new ZoneNotPresentError(cmd) : undefined),
     );
   }
 
@@ -145,11 +160,12 @@ export class MonopriceDriver implements AmpDriver {
     cmd: string,
     complete: (buf: string) => T | undefined,
     fallback: (buf: string) => T | undefined,
+    whenQuiet?: (buf: string, cmd: string) => Error | undefined,
   ): Promise<T> {
     let lastError: Error | undefined;
     for (let attempt = 0; attempt <= this.retries; attempt++) {
       try {
-        return await this.attempt(cmd, complete, fallback);
+        return await this.attempt(cmd, complete, fallback, whenQuiet);
       } catch (err) {
         if (!(err instanceof DriverTimeoutError)) throw err;
         lastError = err;
@@ -162,14 +178,17 @@ export class MonopriceDriver implements AmpDriver {
     cmd: string,
     complete: (buf: string) => T | undefined,
     fallback: (buf: string) => T | undefined,
+    whenQuiet?: (buf: string, cmd: string) => Error | undefined,
   ): Promise<T> {
     if (!this.transport.isOpen) return Promise.reject(new Error('Driver is not open'));
     if (this.waiter)
       return Promise.reject(new Error('Concurrent request; calls must be serialized'));
     return new Promise<T>((resolve, reject) => {
       this.buffer = '';
+      let quiet: ReturnType<typeof setTimeout> | undefined;
       const done = () => {
         clearTimeout(timer);
+        clearTimeout(quiet);
         this.waiter = undefined;
       };
       const timer = setTimeout(() => {
@@ -184,6 +203,18 @@ export class MonopriceDriver implements AmpDriver {
           if (result !== undefined) {
             done();
             resolve(result);
+            return;
+          }
+          // An answer that stops short (echo + prompt, no data) means "not present".
+          if (whenQuiet) {
+            clearTimeout(quiet);
+            quiet = setTimeout(() => {
+              const err = whenQuiet(this.buffer, cmd);
+              if (err) {
+                done();
+                reject(err);
+              }
+            }, ABSENT_QUIET_MS);
           }
         },
         fail: (err) => {

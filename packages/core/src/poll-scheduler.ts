@@ -2,10 +2,10 @@ import type { PollingConfig, ZoneId } from '@open-zone/shared';
 
 /** What the scheduler needs from the controller. */
 export interface PollTargets {
-  /** Master zones of enabled mirror groups that have at least one child. */
-  mirrorMasters(): ZoneId[];
-  /** Child zones of enabled mirror groups. */
-  mirrorChildren(): ZoneId[];
+  /** Primary zones of enabled mirror groups that have at least one follower. */
+  mirrorPrimarys(): ZoneId[];
+  /** Follower zones of enabled mirror groups. */
+  mirrorFollowers(): ZoneId[];
   /** Number of connected interactive clients (UIs). */
   interactiveClients(): number;
   pollZone(zone: ZoneId): Promise<unknown>;
@@ -18,20 +18,20 @@ interface Loop {
   stopped: boolean;
 }
 
-type LoopName = 'mirror-master' | 'mirror-child-audit' | 'interactive';
+type LoopName = 'mirror-primary' | 'mirror-follower-audit' | 'interactive';
 
 /**
  * Tiered background polling (see ARCHITECTURE §5):
- *   mirror-master       every polling.mirrorMasterMs while a mirror is active
- *   mirror-child-audit  one child per tick, cycling through all children
- *                       every polling.mirrorChildAuditMs, while a mirror is active
+ *   mirror-primary       every polling.mirrorPrimaryMs while a mirror is active
+ *   mirror-follower-audit  one follower per tick, cycling through all followers
+ *                       every polling.mirrorFollowerAuditMs, while a mirror is active
  *   interactive         full sweep every polling.interactiveMs while a UI is connected
  * With no mirrors and no clients the bus stays idle.
  */
 export class PollScheduler {
   private readonly loops = new Map<LoopName, Loop>();
   private polling: PollingConfig;
-  private childCursor = 0;
+  private followerCursor = 0;
   private enabled = false;
   private readonly targets: PollTargets;
 
@@ -57,27 +57,27 @@ export class PollScheduler {
   /** Re-evaluate which tiers should run (call after mirror or client changes). */
   update(): void {
     if (!this.enabled) return;
-    const mirrorActive = this.targets.mirrorMasters().length > 0;
+    const mirrorActive = this.targets.mirrorPrimarys().length > 0;
     this.toggle(
-      'mirror-master',
+      'mirror-primary',
       mirrorActive,
-      () => this.polling.mirrorMasterMs,
+      () => this.polling.mirrorPrimaryMs,
       async () => {
-        for (const zone of this.targets.mirrorMasters()) await this.targets.pollZone(zone);
+        for (const zone of this.targets.mirrorPrimarys()) await this.targets.pollZone(zone);
       },
     );
     this.toggle(
-      'mirror-child-audit',
+      'mirror-follower-audit',
       mirrorActive,
       () =>
         Math.max(
           100,
-          this.polling.mirrorChildAuditMs / Math.max(1, this.targets.mirrorChildren().length),
+          this.polling.mirrorFollowerAuditMs / Math.max(1, this.targets.mirrorFollowers().length),
         ),
       async () => {
-        const children = this.targets.mirrorChildren();
-        if (children.length === 0) return;
-        const zone = children[this.childCursor++ % children.length]!;
+        const followers = this.targets.mirrorFollowers();
+        if (followers.length === 0) return;
+        const zone = followers[this.followerCursor++ % followers.length]!;
         await this.targets.pollZone(zone);
       },
     );

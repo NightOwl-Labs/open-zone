@@ -27,6 +27,7 @@ export function createTransport(config: Config): {
         units: t.units,
         keypadZones: t.keypadZones,
         latencyMs: 15,
+        ignoreSetsWhenOff: true, // matches the real 10761
         baudRate: 9600,
       });
       return { transport: emulator.createTransport(), emulator };

@@ -1,0 +1,870 @@
+/*
+ * Alternative designs. Classic (styles.css) is untouched; everything here is
+ * scoped to :root[data-design=…] or to classes only those designs render.
+ */
+
+/* ───── design picker (Settings, all designs) ───── */
+
+.design-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.design-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--tap);
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: inherit;
+  text-decoration: none;
+}
+
+.design-option b {
+  display: block;
+  font-size: 15px;
+}
+
+.design-option.active {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.design-swatch {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid rgb(127 127 127 / 0.3);
+}
+
+.design-swatch[data-swatch='classic'] {
+  background: linear-gradient(135deg, #181b21 50%, #5b9cff 50%);
+}
+
+.design-swatch[data-swatch='studio'] {
+  background: linear-gradient(135deg, #f6f1ea 50%, #c4622d 50%);
+}
+
+.design-swatch[data-swatch='console'] {
+  background: linear-gradient(135deg, #0b0c0d 50%, #39d98a 50%);
+}
+
+.design-swatch[data-swatch='tiles'] {
+  background: conic-gradient(#3b82f6, #f97316, #10b981, #ec4899, #3b82f6);
+}
+
+/* ───── source chips (Studio) ───── */
+
+.chip-row {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 0 calc(-1 * var(--pad-x));
+  padding: 2px var(--pad-x);
+  scroll-padding: 0 var(--pad-x);
+}
+
+.chip-row::-webkit-scrollbar {
+  display: none;
+}
+
+.src-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: calc(var(--tap) - 6px);
+  padding: 0 12px 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: var(--sub-size);
+  font-weight: 600;
+}
+
+.src-chip .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.src-chip.active {
+  border-color: transparent;
+  background: hsl(var(--hue) 70% 50% / 0.16);
+  color: hsl(var(--hue) 60% 38%);
+}
+
+.src-chip:disabled {
+  opacity: 0.5;
+}
+
+/* ════════════════════════════ STUDIO ════════════════════════════
+   Warm paper tones, terracotta accent, generous rounded type. Light
+   first, with a warm dark variant. */
+
+:root[data-design='studio'] {
+  color-scheme: light;
+  --bg: #f6f1ea;
+  --surface: #fffcf7;
+  --surface-2: #efe7dc;
+  --line: #e4d9ca;
+  --text: #2b241e;
+  --text-2: #7b6d60;
+  --accent: #c4622d;
+  --accent-ink: #ffffff;
+  --primary: #8a5cc7;
+  --ok: #2f9e6b;
+  --radius: 20px;
+  font-family:
+    ui-rounded,
+    'SF Pro Rounded',
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-design='studio'] {
+    color-scheme: dark;
+    --bg: #1a1714;
+    --surface: #23201c;
+    --surface-2: #2e2a25;
+    --line: #3b352e;
+    --text: #f3ece3;
+    --text-2: #ab9e90;
+    --accent: #e3864f;
+    --accent-ink: #1a1714;
+    --primary: #b495e6;
+  }
+
+  :root[data-design='studio'] .src-chip.active {
+    color: hsl(var(--hue) 75% 72%);
+  }
+}
+
+:root[data-design='studio'] .top h1 {
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+:root[data-design='studio'] .tabs {
+  border-top: 0;
+  box-shadow: 0 -1px 0 var(--line);
+}
+
+:root[data-design='studio'] .tabs button.active {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+:root[data-design='studio'] .card {
+  border: 0;
+  box-shadow:
+    0 1px 2px rgb(60 40 20 / 0.06),
+    0 4px 16px rgb(60 40 20 / 0.05);
+}
+
+:root[data-design='studio'] .group-title {
+  letter-spacing: 0.04em;
+  color: var(--accent);
+}
+
+.zone-list-studio {
+  display: flex;
+  flex-direction: column;
+  gap: var(--card-gap);
+}
+
+.s-row {
+  padding: var(--card-pad);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow:
+    0 1px 2px rgb(60 40 20 / 0.06),
+    0 4px 16px rgb(60 40 20 / 0.05);
+  transition: background 0.2s;
+}
+
+.s-row.following {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.s-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.s-avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: calc(var(--tap) + 2px);
+  height: calc(var(--tap) + 2px);
+  border: 0;
+  border-radius: 14px;
+  background: var(--surface-2);
+  color: var(--text-2);
+}
+
+.s-row.on .s-avatar {
+  background: hsl(var(--hue) 70% 50% / 0.16);
+  color: hsl(var(--hue) 60% 42%);
+}
+
+.s-row.following .s-avatar {
+  background: transparent;
+  color: var(--text-2);
+}
+
+.s-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  border: 0;
+  background: none;
+  padding: 0;
+  text-align: left;
+}
+
+.s-title .name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--name-size);
+  font-weight: 700;
+}
+
+.s-title .sub {
+  color: var(--text-2);
+  font-size: var(--sub-size);
+}
+
+.s-body {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--card-gap) + 2px);
+  margin-top: calc(var(--card-gap) + 4px);
+}
+
+:root[data-design='studio'] .badge.follower {
+  background: transparent;
+  padding-left: 0;
+  color: var(--text-2);
+}
+
+/* ════════════════════════════ CONSOLE ════════════════════════════
+   Pro-audio mixing desk: near-black, LED green, monospace labels, one
+   vertical channel strip per zone. Always dark. */
+
+:root[data-design='console'] {
+  color-scheme: dark;
+  --bg: #0b0c0d;
+  --surface: #141618;
+  --surface-2: #1d2023;
+  --line: #2a2e33;
+  --text: #d9dfe5;
+  --text-2: #7d8791;
+  --accent: #39d98a;
+  --accent-ink: #03140b;
+  --primary: #f5b83d;
+  --ok: #39d98a;
+  --bad: #ff5252;
+  --radius: 10px;
+  --mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+  --fader-h: 190px;
+}
+
+:root[data-design='console'][data-density='compact'] {
+  --fader-h: 140px;
+}
+
+:root[data-design='console'][data-density='large'] {
+  --fader-h: 260px;
+}
+
+:root[data-design='console'] .top h1,
+:root[data-design='console'] .group-title,
+:root[data-design='console'] .tabs button,
+:root[data-design='console'] .pill {
+  font-family: var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+:root[data-design='console'] .top h1 {
+  font-size: calc(var(--h1) * 0.8);
+}
+
+:root[data-design='console'] .app {
+  max-width: 1100px;
+}
+
+:root[data-design='console'] .card {
+  border-radius: var(--radius);
+}
+
+.zone-list-console {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  margin: 0 -16px;
+  padding: 4px 16px 10px;
+  scrollbar-width: thin;
+}
+
+.c-strip {
+  flex: none;
+  scroll-snap-align: start;
+  width: calc(var(--tap) + 40px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, var(--surface-2), var(--surface) 30%);
+}
+
+.c-strip.following {
+  border-style: dashed;
+}
+
+.c-tag {
+  width: 100%;
+  padding: 2px 0;
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text-2);
+  font: 600 10px var(--mono);
+  letter-spacing: 0.1em;
+  text-align: center;
+}
+
+.c-strip.on .c-tag {
+  color: hsl(var(--hue) 80% 65%);
+}
+
+.c-led {
+  display: grid;
+  place-items: center;
+  width: var(--tap);
+  height: var(--tap);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--bg);
+  color: var(--text-2);
+}
+
+.c-led.on {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow:
+    0 0 12px color-mix(in srgb, var(--accent) 45%, transparent),
+    inset 0 0 8px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.c-led:disabled {
+  opacity: 0.6;
+}
+
+.c-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.c-controls:disabled {
+  opacity: 0.45;
+}
+
+.c-strip.following .c-controls:disabled {
+  opacity: 0.8;
+}
+
+.c-strip .select {
+  min-height: 32px;
+  padding: 0 18px 0 6px;
+  font: 600 12px var(--mono);
+  background-position:
+    calc(100% - 10px) 50%,
+    calc(100% - 6px) 50%;
+  text-overflow: ellipsis;
+}
+
+.c-follow {
+  width: 100%;
+  min-height: 32px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  color: var(--primary);
+  font: 600 11px var(--mono);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.c-mute {
+  width: 100%;
+  min-height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-2);
+  font: 700 13px var(--mono);
+}
+
+.c-mute.active {
+  border-color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 20%, var(--bg));
+  color: var(--bad);
+}
+
+.c-fader {
+  display: flex;
+  justify-content: center;
+  padding: 6px 0;
+  border-radius: 8px;
+  background: repeating-linear-gradient(
+    180deg,
+    transparent 0 calc(var(--fader-h) / 10 - 1px),
+    var(--line) calc(var(--fader-h) / 10 - 1px) calc(var(--fader-h) / 10)
+  );
+}
+
+.slider.vertical {
+  flex: none;
+  position: relative;
+  width: var(--tap);
+  height: var(--fader-h, 190px);
+}
+
+.slider.vertical input[type='range'] {
+  position: absolute;
+  width: var(--fader-h, 190px);
+  height: var(--tap);
+  left: calc((var(--tap) - var(--fader-h, 190px)) / 2);
+  top: calc((var(--fader-h, 190px) - var(--tap)) / 2);
+  transform: rotate(-90deg);
+  touch-action: none;
+}
+
+:root[data-design='console'] .slider.vertical input[type='range']::-webkit-slider-thumb {
+  width: calc(var(--thumb) * 0.7);
+  height: calc(var(--thumb) * 1.3);
+  margin-top: calc((var(--track) - var(--thumb) * 1.3) / 2);
+  border-radius: 4px;
+  background: linear-gradient(90deg, #cfd5db, #ffffff 45%, #9aa3ab);
+}
+
+:root[data-design='console'] .slider.vertical input[type='range']::-moz-range-thumb {
+  width: calc(var(--thumb) * 0.7);
+  height: calc(var(--thumb) * 1.3);
+  border-radius: 4px;
+}
+
+.c-strip:not(.on) input[type='range'] {
+  --accent: var(--text-2);
+}
+
+.c-readout {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #050606;
+  color: var(--accent);
+  font: 700 18px var(--mono);
+  text-shadow: 0 0 6px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+.c-strip:not(.on) .c-readout {
+  color: var(--text-2);
+  text-shadow: none;
+}
+
+.c-readout small {
+  color: var(--primary);
+  font-size: 11px;
+}
+
+.c-name {
+  width: 100%;
+  min-height: 34px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #e8e2c9;
+  color: #1b1a14;
+  font: 700 11px var(--mono);
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+/* ════════════════════════════ TILES ════════════════════════════
+   Room tiles tinted by source, with a volume gauge. Follows the system
+   light/dark setting. */
+
+:root[data-design='tiles'] {
+  --radius: 24px;
+  --accent: #4f7cff;
+}
+
+@media (prefers-color-scheme: light) {
+  :root[data-design='tiles'] {
+    --bg: #eef1f6;
+  }
+}
+
+:root[data-design='tiles'] .tabs {
+  left: 50%;
+  right: auto;
+  bottom: calc(10px + env(safe-area-inset-bottom));
+  width: min(420px, calc(100% - 32px));
+  height: var(--tabbar);
+  padding: 6px;
+  transform: translateX(-50%);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.25);
+}
+
+:root[data-design='tiles'] .tabs button.active {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+:root[data-design='tiles'] .card {
+  border-radius: var(--radius);
+}
+
+.zone-list-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(160px, 45%), 1fr));
+  gap: calc(var(--card-gap) + 2px);
+}
+
+:root[data-density='large'] .zone-list-tiles {
+  grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
+}
+
+.t-tile {
+  position: relative;
+  min-height: max(165px, calc(var(--tap) * 4.1));
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  transition:
+    background 0.3s,
+    color 0.3s;
+}
+
+.t-tile.on {
+  border-color: transparent;
+  color: #fff;
+  background:
+    radial-gradient(120% 90% at 100% 0%, hsl(calc(var(--hue) + 25) 85% 62% / 0.9), transparent 60%),
+    linear-gradient(150deg, hsl(var(--hue) 70% 48%), hsl(calc(var(--hue) + 20) 65% 34%));
+}
+
+.t-tile.on.muted {
+  filter: saturate(0.35);
+}
+
+.t-tile.following {
+  background: transparent;
+  border-style: dashed;
+}
+
+.t-open {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 2px;
+  padding: var(--pad-x);
+  padding-right: calc(var(--pad-x) + var(--tap) * 0.6);
+  padding-bottom: calc(var(--pad-x) + var(--tap));
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+}
+
+.t-tile:not(.on) .t-open {
+  padding-bottom: var(--pad-x);
+}
+
+.t-tile.following .t-open {
+  padding-right: var(--pad-x);
+}
+
+.t-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--name-size);
+  font-weight: 750;
+}
+
+.t-sub {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: var(--sub-size);
+  opacity: 0.85;
+}
+
+.t-tile:not(.on) .t-sub {
+  color: var(--text-2);
+  opacity: 1;
+}
+
+.t-sub .icon {
+  width: 15px;
+  height: 15px;
+}
+
+.t-ring {
+  order: -1; /* first in the column; margin pushes the text to the bottom */
+  margin: -4px 0 auto -6px;
+  width: calc(var(--tap) * 1.25);
+  height: calc(var(--tap) * 1.25);
+}
+
+.t-ring circle {
+  fill: none;
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+
+.t-ring-track {
+  stroke: rgb(255 255 255 / 0.25);
+}
+
+.t-ring-fill {
+  stroke: #fff;
+}
+
+.t-tile.following .t-ring-track {
+  stroke: var(--line);
+}
+
+.t-tile.following .t-ring-fill {
+  stroke: var(--text-2);
+}
+
+.t-ring-text {
+  fill: currentColor;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.t-lead {
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.22);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.t-tile:not(.on) .t-lead {
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
+  color: var(--primary);
+}
+
+.t-power {
+  position: absolute;
+  top: calc(var(--pad-x) - 4px);
+  right: calc(var(--pad-x) - 4px);
+  display: grid;
+  place-items: center;
+  width: var(--tap);
+  height: var(--tap);
+  border: 0;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--text-2);
+}
+
+.t-power.on {
+  background: #fff;
+  color: hsl(var(--hue) 70% 40%);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.25);
+}
+
+.t-quick {
+  position: absolute;
+  left: calc(var(--pad-x) - 4px);
+  right: calc(var(--pad-x) - 4px);
+  bottom: calc(var(--pad-x) - 6px);
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.t-quick button {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  height: calc(var(--tap) - 6px);
+  border: 0;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 0.18);
+  color: #fff;
+}
+
+.t-quick button.active {
+  background: #fff;
+  color: #d33;
+}
+
+.t-quick .icon {
+  width: 20px;
+  height: 20px;
+}
+
+/* ───── Tiles: zone detail sheet matches the tile ───── */
+
+.sheet-tiles {
+  overflow: hidden;
+}
+
+.sheet-tiles .sheet-head.has-hero {
+  position: relative;
+}
+
+.sheet-tiles .sheet-head.has-hero > .icon-btn {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 2;
+  background: rgb(0 0 0 / 0.18);
+  color: inherit;
+  backdrop-filter: blur(6px);
+}
+
+.td-hero {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  min-height: 190px;
+  padding: 64px var(--pad-x) var(--pad-x);
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.td-hero.on {
+  color: #fff;
+  background:
+    radial-gradient(120% 90% at 100% 0%, hsl(calc(var(--hue) + 25) 85% 62% / 0.9), transparent 60%),
+    linear-gradient(150deg, hsl(var(--hue) 70% 48%), hsl(calc(var(--hue) + 20) 65% 34%));
+}
+
+.td-hero.on.muted {
+  filter: saturate(0.35);
+}
+
+.td-hero.following {
+  background: transparent;
+  border-bottom: 1px dashed var(--line);
+}
+
+.td-ring {
+  flex: none;
+  width: calc(var(--tap) * 2.1);
+  height: calc(var(--tap) * 2.1);
+}
+
+.td-ring .t-ring-text {
+  font-size: 16px;
+}
+
+.td-hero.following .t-ring-track {
+  stroke: var(--line);
+}
+
+.td-hero.following .t-ring-fill {
+  stroke: var(--text-2);
+}
+
+.td-text {
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 6px;
+}
+
+.td-text h2 {
+  margin: 0 0 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: calc(var(--name-size) + 8px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.td-hero:not(.on) .t-sub {
+  color: var(--text-2);
+}
+
+.td-power {
+  top: 12px;
+  right: 12px;
+}
+
+.td-volume {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.td-volume .slider-value {
+  display: none;
+}
+
+.td-off {
+  margin: 16px 0 4px;
+}
+
+/* Controls in the sheet take the zone's source color, like the tile. */
+.sheet-tiles.tinted {
+  --accent: hsl(var(--hue) 70% 52%);
+}
+
+.sheet-tiles.tinted .src-chip.active {
+  background: hsl(var(--hue) 70% 50% / 0.2);
+}

@@ -27,7 +27,7 @@ async function setup(
   const driver = new MonopriceDriver(amp.createTransport(), { timeoutMs: 40, retries: 0 });
   const store = new MemoryConfigStore({
     queue: { interCommandGapMs: 0 },
-    polling: { mirrorMasterMs: 100, mirrorChildAuditMs: 250, interactiveMs: 250 },
+    polling: { mirrorPrimaryMs: 100, mirrorFollowerAuditMs: 250, interactiveMs: 250 },
     ...opts.config,
   });
   let n = 0;
@@ -117,42 +117,281 @@ describe('Controller: zone commands and naming', () => {
     const { ctl, store, ofType } = await setup();
     expect((await ctl.renameZone(11, '  Kitchen ')).name).toBe('Kitchen');
     await ctl.renameSource(2, 'Turntable');
-    expect(store.current.zones['11']).toEqual({ name: 'Kitchen' });
-    expect(ctl.getSources()[1]).toEqual({ source: 2, name: 'Turntable' });
+    expect(store.current.zones['11']).toEqual({ name: 'Kitchen', enabled: true });
+    expect(ctl.getSources()[1]).toEqual({ source: 2, name: 'Turntable', enabled: true });
     await ctl.renameZone(11, '');
     expect(store.current.zones['11']).toBeUndefined();
-    expect(ofType('zone.renamed').map((e) => e.name)).toEqual(['Kitchen', null]);
+    expect(ofType('zone.updated').map((e) => e.name)).toEqual(['Kitchen', null]);
     await expect(ctl.renameSource(7, 'x')).rejects.toBeInstanceOf(NotFoundError);
   });
 });
 
+describe('Controller: zones that are off (10761 ignores their settings)', () => {
+  it('rejects API setting changes to an off zone unless the patch turns it on', async () => {
+    const { ctl, sets } = await setup();
+    await expect(ctl.setZone(13, { volume: 20 })).rejects.toThrow(/zone 13 is off/);
+    expect(sets()).toEqual([]);
+    await ctl.setZone(13, { power: true, volume: 20 });
+    expect(sets()).toEqual(['<13PR01', '<13VO20']);
+  });
+
+  it('allows settings in the same patch that turns a zone off (sent before power-off)', async () => {
+    const { ctl, sets } = await setup();
+    await ctl.setZone(13, { power: true });
+    await ctl.setZone(13, { volume: 5, power: false });
+    expect(sets().slice(-2)).toEqual(['<13VO05', '<13PR00']);
+  });
+
+  it('does not send mirror settings to followers while primary and follower are off', async () => {
+    const { ctl, amp, sets } = await setup({ amp: { ignoreSetsWhenOff: true } });
+    await ctl.createMirror({ primary: 11, followers: [12] });
+    await ctl.whenIdle();
+    const before = sets().length;
+    amp.pressKeypad(11, { volume: 30, source: 3 }); // keypad change while off
+    await sleep(400);
+    expect(
+      sets()
+        .slice(before)
+        .filter((c) => c.startsWith('<12')),
+    ).toEqual([]);
+    amp.pressKeypad(11, { power: true });
+    await vi.waitFor(() =>
+      expect(amp.getZone(12)).toMatchObject({ power: true, volume: 30, source: 3 }),
+    );
+  });
+});
+
+describe('Controller: all off', () => {
+  it('turns every enabled zone off without detaching mirror followers', async () => {
+    const { ctl, amp, ofType } = await setup();
+    amp.pressKeypad(11, { power: true });
+    amp.pressKeypad(13, { power: true });
+    amp.pressKeypad(21, { power: true });
+    await ctl.createMirror({ primary: 11, followers: [12] });
+    await ctl.updateZone(26, { enabled: false });
+    amp.pressKeypad(26, { power: true }); // disabled zone: left alone
+    await ctl.whenIdle();
+    const result = await ctl.allOff();
+    await ctl.whenIdle();
+    for (const z of [11, 12, 13, 14, 15, 16, 21, 22, 23, 24, 25]) {
+      expect(amp.getZone(z).power).toBe(false);
+    }
+    expect(amp.getZone(26).power).toBe(true);
+    expect(result.applied[0]).toBe(11); // primaries first
+    expect(result.applied).not.toContain(26);
+    expect(ofType('mirror.followerDetached')).toHaveLength(0);
+    expect(ofType('zones.allOff')).toHaveLength(1);
+    expect(ctl.getMirror('g1').followers).toEqual([{ zone: 12, volumeOffset: 0 }]);
+  });
+});
+
+describe('Controller: scenes', () => {
+  it('creates, updates and deletes scenes with validation', async () => {
+    const { ctl, store } = await setup();
+    const scene = await ctl.createScene({
+      name: ' Dinner ',
+      source: 2,
+      zones: [
+        { zone: 11, volume: 18 },
+        { zone: 13, volume: 12 },
+      ],
+    });
+    expect(scene).toEqual({
+      id: 'g1',
+      name: 'Dinner',
+      source: 2,
+      zones: [
+        { zone: 11, volume: 18 },
+        { zone: 13, volume: 12 },
+      ],
+      othersOff: false,
+    });
+    expect(store.current.scenes).toHaveLength(1);
+    expect((await ctl.updateScene('g1', { othersOff: true })).othersOff).toBe(true);
+    await expect(
+      ctl.createScene({ name: 'x', source: 9, zones: [{ zone: 11, volume: 5 }] }),
+    ).rejects.toThrow(/source 9/);
+    await expect(
+      ctl.createScene({ name: 'x', source: 1, zones: [{ zone: 11, volume: 50 }] }),
+    ).rejects.toThrow(/volume 50/);
+    await expect(ctl.createScene({ name: 'x', source: 1, zones: [] })).rejects.toThrow(
+      /at least one zone/,
+    );
+    await expect(
+      ctl.createScene({ name: '', source: 1, zones: [{ zone: 11, volume: 5 }] }),
+    ).rejects.toThrow(/name/);
+    await ctl.deleteScene('g1');
+    expect(ctl.listScenes()).toEqual([]);
+  });
+
+  it('activates a scene with per-zone preset volumes and turns others off', async () => {
+    const { ctl, amp, ofType } = await setup();
+    amp.pressKeypad(15, { power: true });
+    const scene = await ctl.createScene({
+      name: 'Movie',
+      source: 3,
+      zones: [
+        { zone: 11, volume: 25 },
+        { zone: 12, volume: 10 },
+      ],
+      othersOff: true,
+    });
+    amp.pressKeypad(11, { mute: true });
+    const result = await ctl.activateScene(scene.id);
+    await ctl.whenIdle();
+    expect(amp.getZone(11)).toMatchObject({ power: true, source: 3, volume: 25, mute: false });
+    expect(amp.getZone(12)).toMatchObject({ power: true, source: 3, volume: 10 });
+    expect(amp.getZone(15).power).toBe(false);
+    expect(result.applied.slice(0, 2)).toEqual([11, 12]);
+    expect(ofType('scene.activated')[0]).toMatchObject({ sceneId: scene.id });
+  });
+
+  it('skips mirror followers (they follow their primary, offset included)', async () => {
+    const { ctl, amp, ofType } = await setup();
+    amp.pressKeypad(11, { power: true });
+    await ctl.createMirror({ primary: 11, followers: [{ zone: 12, volumeOffset: -3 }] });
+    await ctl.whenIdle();
+    const scene = await ctl.createScene({
+      name: 'Party',
+      source: 4,
+      zones: [
+        { zone: 11, volume: 30 },
+        { zone: 12, volume: 5 },
+      ],
+      othersOff: true,
+    });
+    const result = await ctl.activateScene(scene.id);
+    await ctl.whenIdle();
+    expect(result.skipped).toEqual([{ zone: 12, reason: 'follows zone 11' }]);
+    expect(amp.getZone(12)).toMatchObject({ power: true, source: 4, volume: 27 });
+    expect(ofType('mirror.followerDetached')).toHaveLength(0);
+  });
+
+  it('refuses to activate a scene whose source was disabled later', async () => {
+    const { ctl } = await setup();
+    const scene = await ctl.createScene({
+      name: 'Aux',
+      source: 5,
+      zones: [{ zone: 11, volume: 9 }],
+    });
+    await ctl.updateSource(5, { enabled: false });
+    await expect(ctl.activateScene(scene.id)).rejects.toThrow(/source 5 is disabled/);
+  });
+});
+
+describe('Controller: home settings', () => {
+  it('stores and clears the home name, announcing config changes', async () => {
+    const { ctl, store, ofType } = await setup();
+    await ctl.updateSettings({ home: { name: '  Lake House ' } });
+    expect(store.current.home).toEqual({ name: 'Lake House' });
+    expect(ofType('config.updated').at(-1)?.config.home.name).toBe('Lake House');
+    await ctl.updateSettings({ polling: { interactiveMs: 3000 } });
+    expect(store.current.home.name).toBe('Lake House'); // untouched by other updates
+    await ctl.updateSettings({ home: { name: null } });
+    expect(store.current.home).toEqual({});
+  });
+});
+
+describe('Controller: zone enable/disable', () => {
+  it('disables unused zones, keeps names, and rejects commands to them', async () => {
+    const { ctl, store, ofType } = await setup();
+    await ctl.updateZone(15, { name: 'Garage' });
+    const v = await ctl.updateZone(15, { enabled: false });
+    expect(v).toMatchObject({ zone: 15, name: 'Garage', enabled: false });
+    expect(store.current.zones['15']).toEqual({ name: 'Garage', enabled: false });
+    expect(ofType('zone.updated').at(-1)).toEqual({
+      type: 'zone.updated',
+      zone: 15,
+      name: 'Garage',
+      enabled: false,
+    });
+    await expect(ctl.setZone(15, { power: true })).rejects.toThrow(/zone 15 is disabled/);
+    expect(ctl.getZones().find((z) => z.zone === 15)?.enabled).toBe(false);
+    await ctl.updateZone(15, { enabled: true });
+    await expect(ctl.setZone(15, { power: true })).resolves.toMatchObject({ enabled: true });
+  });
+
+  it('keeps disabled zones out of mirrors and mirrored zones from being disabled', async () => {
+    const { ctl } = await setup();
+    await ctl.updateZone(14, { enabled: false });
+    await expect(ctl.createMirror({ primary: 11, followers: [14] })).rejects.toThrow(
+      /14 is disabled/,
+    );
+    await expect(ctl.createMirror({ primary: 14, followers: [12] })).rejects.toThrow(
+      /14 is disabled/,
+    );
+    await ctl.createMirror({ primary: 11, followers: [12] });
+    await expect(ctl.updateZone(12, { enabled: false })).rejects.toThrow(
+      /remove it from the mirror/,
+    );
+    await expect(ctl.updateZone(11, { enabled: false })).rejects.toThrow(
+      /remove it from the mirror/,
+    );
+    await expect(ctl.updateZone(12, { name: 'Den' })).resolves.toMatchObject({ name: 'Den' });
+  });
+});
+
+describe('Controller: source enable/disable', () => {
+  it('disables sources, rejects them from the API, but lets mirrors and keypads use them', async () => {
+    const { ctl, amp, store, ofType } = await setup();
+    const v = await ctl.updateSource(4, { enabled: false });
+    expect(v).toEqual({ source: 4, name: null, enabled: false });
+    expect(store.current.sources['4']).toEqual({ enabled: false });
+    expect(ofType('source.updated')[0]?.source).toEqual(v);
+    await expect(ctl.setZone(11, { source: 4 })).rejects.toThrow(/source 4 is disabled/);
+    // A keypad picks the disabled source on a primary: the mirror still follows.
+    amp.pressKeypad(11, { power: true });
+    await ctl.createMirror({ primary: 11, followers: [12] });
+    await ctl.whenIdle();
+    amp.pressKeypad(11, { source: 4 });
+    await vi.waitFor(() => expect(amp.getZone(12).source).toBe(4));
+  });
+
+  it('keeps the name when toggling and refuses to disable every source', async () => {
+    const { ctl } = await setup();
+    await ctl.updateSource(2, { name: 'Sonos' });
+    expect(await ctl.updateSource(2, { enabled: false })).toEqual({
+      source: 2,
+      name: 'Sonos',
+      enabled: false,
+    });
+    expect(await ctl.updateSource(2, { enabled: true })).toEqual({
+      source: 2,
+      name: 'Sonos',
+      enabled: true,
+    });
+    for (const s of [1, 2, 3, 4, 5]) await ctl.updateSource(s, { enabled: false });
+    await expect(ctl.updateSource(6, { enabled: false })).rejects.toThrow(/at least one source/);
+  });
+});
+
 describe('Controller: mirror setup', () => {
-  it('rejects children that have a wall keypad', async () => {
+  it('rejects followers that have a wall keypad', async () => {
     const { ctl } = await setup({ amp: { keypadZones: [12] } });
-    await expect(ctl.createMirror({ master: 11, children: [12] })).rejects.toThrow(/keypad/);
-    await expect(ctl.createMirror({ master: 12, children: [13] })).resolves.toMatchObject({
-      master: 12,
+    await expect(ctl.createMirror({ primary: 11, followers: [12] })).rejects.toThrow(/keypad/);
+    await expect(ctl.createMirror({ primary: 12, followers: [13] })).resolves.toMatchObject({
+      primary: 12,
     });
   });
 
   it('rejects overlapping groups', async () => {
     const { ctl } = await setup();
-    await ctl.createMirror({ master: 11, children: [12] });
-    await expect(ctl.createMirror({ master: 12, children: [13] })).rejects.toBeInstanceOf(
+    await ctl.createMirror({ primary: 11, followers: [12] });
+    await expect(ctl.createMirror({ primary: 12, followers: [13] })).rejects.toBeInstanceOf(
       MirrorValidationError,
     );
   });
 
-  it('syncs children to the master on creation', async () => {
+  it('syncs followers to the primary on creation', async () => {
     const { ctl, amp } = await setup();
     amp.pressKeypad(11, { power: true, volume: 25, source: 3, bass: 9 });
-    const group = await ctl.createMirror({ master: 11, children: [12, 21], name: 'Downstairs' });
+    const group = await ctl.createMirror({ primary: 11, followers: [12, 21], name: 'Downstairs' });
     await ctl.whenIdle();
     expect(group).toMatchObject({ id: 'g1', name: 'Downstairs', enabled: true });
     for (const z of [12, 21]) {
       expect(amp.getZone(z)).toMatchObject({ power: true, volume: 25, source: 3, bass: 9 });
     }
-    expect(ctl.getZone(12).mirror).toEqual({ groupId: 'g1', role: 'child', volumeOffset: 0 });
+    expect(ctl.getZone(12).mirror).toEqual({ groupId: 'g1', role: 'follower', volumeOffset: 0 });
   });
 });
 
@@ -160,23 +399,23 @@ describe('Controller: mirror propagation', () => {
   async function mirrored() {
     const t = await setup();
     t.amp.pressKeypad(11, { power: true, volume: 20, source: 2 });
-    await t.ctl.createMirror({ master: 11, children: [12, 13] });
+    await t.ctl.createMirror({ primary: 11, followers: [12, 13] });
     await t.ctl.whenIdle();
     return t;
   }
 
-  it('pushes API changes on the master to children immediately; the next poll does nothing', async () => {
+  it('pushes API changes on the primary to followers immediately; the next poll does nothing', async () => {
     const { ctl, amp, sets } = await mirrored();
     const before = sets().length;
     await ctl.setZone(11, { volume: 30 });
     await ctl.whenIdle();
     expect(sets().slice(before).sort()).toEqual(['<11VO30', '<12VO30', '<13VO30']);
     expect(amp.getZone(13).volume).toBe(30);
-    await sleep(350); // several master polls and a child audit
+    await sleep(350); // several primary polls and a follower audit
     expect(sets().length).toBe(before + 3);
   });
 
-  it('picks up keypad changes on the master by polling', async () => {
+  it('picks up keypad changes on the primary by polling', async () => {
     const { amp } = await mirrored();
     amp.pressKeypad(11, { source: 5, volume: 18, mute: true });
     await vi.waitFor(() => {
@@ -185,13 +424,13 @@ describe('Controller: mirror propagation', () => {
     });
   });
 
-  it('turns an out-of-band child volume change into an offset', async () => {
+  it('turns an out-of-band follower volume change into an offset', async () => {
     const { ctl, amp, store, ofType } = await mirrored();
     amp.pressKeypad(12, { volume: 24 });
     await vi.waitFor(() => expect(ofType('mirror.offsetChanged')).toHaveLength(1), {
       timeout: 1500,
     });
-    expect(store.current.mirrors[0]?.children.find((c) => c.zone === 12)?.volumeOffset).toBe(4);
+    expect(store.current.mirrors[0]?.followers.find((c) => c.zone === 12)?.volumeOffset).toBe(4);
     await ctl.setZone(11, { volume: 10 });
     await ctl.whenIdle();
     expect(amp.getZone(12).volume).toBe(14);
@@ -201,13 +440,13 @@ describe('Controller: mirror propagation', () => {
     expect(amp.getZone(12).volume).toBe(38); // clamped
   });
 
-  it('detaches a child whose other settings change out-of-band', async () => {
+  it('detaches a follower whose other settings change out-of-band', async () => {
     const { ctl, amp, ofType } = await mirrored();
     amp.pressKeypad(13, { source: 6 });
-    await vi.waitFor(() => expect(ofType('mirror.childDetached')).toHaveLength(1), {
+    await vi.waitFor(() => expect(ofType('mirror.followerDetached')).toHaveLength(1), {
       timeout: 1500,
     });
-    expect(ofType('mirror.childDetached')[0]).toMatchObject({
+    expect(ofType('mirror.followerDetached')[0]).toMatchObject({
       zone: 13,
       reason: 'property-changed',
       property: 'source',
@@ -219,22 +458,22 @@ describe('Controller: mirror propagation', () => {
     expect(amp.getZone(13).source).toBe(6);
   });
 
-  it('applies the same rules to API changes made directly on a child', async () => {
+  it('applies the same rules to API changes made directly on a follower', async () => {
     const { ctl, ofType } = await mirrored();
     await ctl.setZone(12, { volume: 15 });
     await ctl.whenIdle();
     expect(ofType('mirror.offsetChanged')[0]).toMatchObject({ zone: 12, volumeOffset: -5 });
     await ctl.setZone(13, { treble: 3 });
     await ctl.whenIdle();
-    expect(ofType('mirror.childDetached')[0]).toMatchObject({ zone: 13, property: 'treble' });
+    expect(ofType('mirror.followerDetached')[0]).toMatchObject({ zone: 13, property: 'treble' });
   });
 
-  it('detaches a child when a keypad is connected to it', async () => {
+  it('detaches a follower when a keypad is connected to it', async () => {
     const { amp, ofType } = await mirrored();
     amp.setKeypadConnected(12, true);
     await vi.waitFor(
       () =>
-        expect(ofType('mirror.childDetached')[0]).toMatchObject({
+        expect(ofType('mirror.followerDetached')[0]).toMatchObject({
           zone: 12,
           reason: 'keypad-detected',
         }),
@@ -242,6 +481,21 @@ describe('Controller: mirror propagation', () => {
         timeout: 1500,
       },
     );
+  });
+
+  it('applies a volume offset set in the mirror editor', async () => {
+    const { ctl, amp, store } = await mirrored();
+    await ctl.updateMirror('g1', { followers: [{ zone: 12, volumeOffset: -6 }, 13] });
+    await ctl.whenIdle();
+    expect(amp.getZone(12).volume).toBe(14);
+    expect(amp.getZone(13).volume).toBe(20);
+    expect(store.current.mirrors[0]?.followers).toEqual([
+      { zone: 12, volumeOffset: -6 },
+      { zone: 13, volumeOffset: 0 },
+    ]);
+    await ctl.setZone(11, { volume: 30 });
+    await ctl.whenIdle();
+    expect(amp.getZone(12).volume).toBe(24);
   });
 
   it('stops pushing when a group is disabled and resyncs when re-enabled', async () => {
@@ -257,25 +511,27 @@ describe('Controller: mirror propagation', () => {
 });
 
 describe('Controller: power handling and recovery', () => {
-  it('does not judge children while master and child are both off; full resync on power-on', async () => {
+  it('does not judge followers while primary and follower are both off; full resync on power-on', async () => {
     const { ctl, amp, ofType } = await setup({ amp: { ignoreSetsWhenOff: true } });
     amp.pressKeypad(11, { volume: 20 });
-    await ctl.createMirror({ master: 11, children: [12] });
+    await ctl.createMirror({ primary: 11, followers: [12] });
     await ctl.whenIdle();
     amp.pressKeypad(12, { volume: 3, source: 4 }); // drift while idle
     await sleep(400);
-    expect(ofType('mirror.childDetached')).toHaveLength(0);
+    expect(ofType('mirror.followerDetached')).toHaveLength(0);
     expect(ofType('mirror.offsetChanged')).toHaveLength(0);
     amp.pressKeypad(11, { power: true });
     await vi.waitFor(() =>
       expect(amp.getZone(12)).toMatchObject({ power: true, volume: 20, source: 1 }),
     );
-    expect(ofType('mirror.childDetached')).toHaveLength(0);
+    expect(ofType('mirror.followerDetached')).toHaveLength(0);
   });
 
   it('restores persisted mirrors on startup (power-loss recovery)', async () => {
     const { amp } = await setup({
-      config: { mirrors: [{ id: 'saved', master: 11, children: [{ zone: 12, volumeOffset: 2 }] }] },
+      config: {
+        mirrors: [{ id: 'saved', primary: 11, followers: [{ zone: 12, volumeOffset: 2 }] }],
+      },
       before: (a) => a.pressKeypad(11, { power: true, volume: 10, source: 4 }),
     });
     await vi.waitFor(() =>
@@ -288,7 +544,7 @@ describe('Controller: power handling and recovery', () => {
   it('resyncs mirrors after reconnecting', async () => {
     const { ctl, amp } = await setup();
     amp.pressKeypad(11, { power: true });
-    await ctl.createMirror({ master: 11, children: [12] });
+    await ctl.createMirror({ primary: 11, followers: [12] });
     await ctl.whenIdle();
     amp.dropLink();
     amp.pressKeypad(11, { source: 3 });

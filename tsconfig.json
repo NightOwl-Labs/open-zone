@@ -16,5 +16,16 @@
     "noFallthroughCasesInSwitch": true,
     "skipLibCheck": true
   },
-  "include": ["packages/*/src", "packages/*/test", "tools/*/src", "vitest.config.ts"]
+  "include": [
+    "packages/shared/src",
+    "packages/core/src",
+    "packages/drivers/src",
+    "packages/server/src",
+    "packages/shared/test",
+    "packages/core/test",
+    "packages/drivers/test",
+    "packages/server/test",
+    "tools/*/src",
+    "vitest.config.ts"
+  ]
 }
