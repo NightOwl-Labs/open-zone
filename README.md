@@ -4,3 +4,19 @@ Controller for RS-232 multi-zone amplifiers. It runs on any Linux host; the refe
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [Implementation plan](docs/IMPLEMENTATION_PLAN.md)
+
+## Status
+
+Phases 0–2 are complete: the core controller, the mirror engine, the Monoprice driver, the emulator, and the `oz-probe` hardware validation tool. The REST/WebSocket server and the phone UI come next.
+
+## Development
+
+Requires Node ≥ 22.18 (Node 24 LTS recommended). TypeScript runs directly on Node, so there is no build step.
+
+```sh
+npm install
+npm run check                    # lint, typecheck, format check, tests
+npm run probe -- --simulate      # hardware probe against the built-in emulator
+```
+
+- [Hardware validation on the Pi](docs/hardware-validation.md)

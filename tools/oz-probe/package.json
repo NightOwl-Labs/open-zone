@@ -1,0 +1,13 @@
+{
+  "name": "@open-zone/oz-probe",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "oz-probe": "./src/cli.ts"
+  },
+  "dependencies": {
+    "@open-zone/drivers": "*",
+    "@open-zone/shared": "*"
+  }
+}

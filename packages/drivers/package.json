@@ -1,0 +1,13 @@
+{
+  "name": "@open-zone/drivers",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@open-zone/shared": "*",
+    "serialport": "^13.0.0"
+  }
+}
