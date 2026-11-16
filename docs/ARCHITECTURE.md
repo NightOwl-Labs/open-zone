@@ -264,11 +264,11 @@ All JSON. Schemas come from the shared zod package and are published as OpenAPI 
 | PATCH          | `/api/v1/sources/:id`      | `{ name?, enabled? }`: rename, or hide an unused source from pickers (the API then rejects selecting it) |
 | GET / POST     | `/api/v1/mirrors`          | List or create mirror groups                                                                             |
 | PATCH / DELETE | `/api/v1/mirrors/:id`      | Edit, enable/disable, or delete a group                                                                  |
-| GET / PATCH    | `/api/v1/config`           | Serial port, baud, poll intervals                                                                        |
+| GET / PATCH    | `/api/v1/config`           | Home name (`home.name`), polling and queue settings. Changes are broadcast as `config.updated`           |
 | GET            | `/api/v1/serial-ports`     | List candidate ports for the settings UI                                                                 |
 | WS             | `/api/v1/events`           | Sends a snapshot on connect, then events                                                                 |
 
-**WebSocket events:** `snapshot`, `zone.changed` (diff only), `zone.updated`, `source.updated`, `mirror.updated`, `mirror.offsetChanged`, `mirror.followerDetached`, `connection.changed`, `command.failed`.
+**WebSocket events:** `snapshot`, `zone.changed` (diff only), `zone.updated`, `source.updated`, `config.updated`, `mirror.updated`, `mirror.offsetChanged`, `mirror.followerDetached`, `connection.changed`, `command.failed`.
 Commands go through REST and the WebSocket only pushes. This keeps the API simple to call from curl, scripts and future integrations.
 
 ---

@@ -126,6 +126,19 @@ describe('Controller: zone commands and naming', () => {
   });
 });
 
+describe('Controller: home settings', () => {
+  it('stores and clears the home name, announcing config changes', async () => {
+    const { ctl, store, ofType } = await setup();
+    await ctl.updateSettings({ home: { name: '  Lake House ' } });
+    expect(store.current.home).toEqual({ name: 'Lake House' });
+    expect(ofType('config.updated').at(-1)?.config.home.name).toBe('Lake House');
+    await ctl.updateSettings({ polling: { interactiveMs: 3000 } });
+    expect(store.current.home.name).toBe('Lake House'); // untouched by other updates
+    await ctl.updateSettings({ home: { name: null } });
+    expect(store.current.home).toEqual({});
+  });
+});
+
 describe('Controller: zone enable/disable', () => {
   it('disables unused zones, keeps names, and rejects commands to them', async () => {
     const { ctl, store, ofType } = await setup();

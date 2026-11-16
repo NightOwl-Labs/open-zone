@@ -68,8 +68,14 @@ export const QueueConfigSchema = z.object({
   retries: z.number().int().min(0).max(5).default(1),
 });
 
+export const HomeConfigSchema = z.object({
+  /** Shown at the top of every screen, e.g. "Lake House". */
+  name: name.optional(),
+});
+
 export const ConfigObjectSchema = z.object({
   schemaVersion: z.literal(CONFIG_SCHEMA_VERSION).default(CONFIG_SCHEMA_VERSION),
+  home: HomeConfigSchema.prefault({}),
   device: z
     .object({
       driver: z.literal('monoprice-10761').default('monoprice-10761'),
@@ -151,6 +157,7 @@ export function migrateConfig(input: unknown): unknown {
 
 export const ConfigSchema = z.preprocess(migrateConfig, ConfigObjectSchema);
 
+export type HomeConfig = z.infer<typeof HomeConfigSchema>;
 export type TransportConfig = z.infer<typeof TransportConfigSchema>;
 export type MirrorFollower = z.infer<typeof MirrorFollowerSchema>;
 export type MirrorGroup = z.infer<typeof MirrorGroupSchema>;

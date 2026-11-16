@@ -17,7 +17,11 @@ export interface Toast {
   text: string;
 }
 
+export type Density = 'compact' | 'normal' | 'large';
+
 export interface AppState {
+  /** Per-device display preference (kept in this browser only). */
+  density: Density;
   socket: 'connecting' | 'open' | 'closed';
   system: SystemView | null;
   zones: ZoneView[];
@@ -27,7 +31,24 @@ export interface AppState {
   toasts: Toast[];
 }
 
+const DENSITY_KEY = 'open-zone.density';
+
+function loadDensity(): Density {
+  try {
+    const v = localStorage.getItem(DENSITY_KEY);
+    if (v === 'compact' || v === 'normal' || v === 'large') return v;
+  } catch {
+    /* storage unavailable (private mode): use the default */
+  }
+  return 'normal';
+}
+
+function applyDensity(d: Density): void {
+  document.documentElement.dataset.density = d;
+}
+
 let state: AppState = {
+  density: loadDensity(),
   socket: 'connecting',
   system: null,
   zones: [],
@@ -55,6 +76,18 @@ export function useApp<T>(selector: (s: AppState) => T): T {
 
 export function getState(): AppState {
   return state;
+}
+
+applyDensity(state.density);
+
+export function setDensity(density: Density): void {
+  try {
+    localStorage.setItem(DENSITY_KEY, density);
+  } catch {
+    /* not persisted, but still applied for this session */
+  }
+  applyDensity(density);
+  update((s) => ({ ...s, density }));
 }
 
 // ───────────────────────────── toasts ─────────────────────────────
@@ -160,6 +193,8 @@ function handle(msg: ServerMessage): void {
           : `its ${msg.property ?? 'settings'} changed`;
       return toast(`${nameOf(msg.zone)} left the mirror because ${why}`);
     }
+    case 'config.updated':
+      return update((s) => ({ ...s, config: msg.config }));
     case 'connection.changed':
       update((s) =>
         s.system

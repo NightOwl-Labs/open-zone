@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Icon, StatusPill, Toasts } from './components.tsx';
 import { MirrorsPage } from './MirrorsPage.tsx';
 import { SettingsPage } from './SettingsPage.tsx';
-import { connect, refresh } from './store.ts';
+import { connect, refresh, useApp } from './store.ts';
 import { ZonesPage } from './ZonesPage.tsx';
 
 type Tab = 'zones' | 'mirrors' | 'settings';
@@ -21,6 +21,11 @@ export function App() {
   const [tab, setTab] = useState<Tab>(readHash);
   const [openZone, setOpenZone] = useState<number | null>(null);
   const closeZone = useCallback(() => setOpenZone(null), []);
+  const homeName = useApp((s) => s.config?.home.name ?? null);
+
+  useEffect(() => {
+    document.title = homeName ? `${homeName} · open-zone` : 'open-zone';
+  }, [homeName]);
 
   useEffect(() => {
     // Load state over HTTP right away; the WebSocket then keeps it live.
@@ -40,7 +45,10 @@ export function App() {
   return (
     <div className="app">
       <header className="top">
-        <h1>{TABS.find((t) => t.id === tab)?.label}</h1>
+        <div className="titles">
+          {homeName && <p className="home-name">{homeName}</p>}
+          <h1>{TABS.find((t) => t.id === tab)?.label}</h1>
+        </div>
         <StatusPill />
       </header>
       <main>

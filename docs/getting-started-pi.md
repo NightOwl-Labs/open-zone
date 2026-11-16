@@ -36,6 +36,8 @@ The emulator acts like three stacked 10761 units (18 zones). Zones 11–15, 21�
 
 ### Things to try
 
+- **Settings → Home:** name your home (shown at the top of every screen) and pick compact, normal or large spacing for this device.
+
 - **Zones:** turn zones on, change sources and volume, tap a zone name for tone, balance and renaming.
 - **Settings → Sources:** name your sources, e.g. "Sonos" or "TV". Turn off inputs you don't use so they disappear from the zone source lists.
 - **Settings → Zones:** name zones, and turn off zones with no speakers. Units are detected automatically, but each unit always reports all 6 zones.

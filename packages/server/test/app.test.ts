@@ -142,6 +142,16 @@ describe('REST API', () => {
     expect(emulator.getZone(21)).toMatchObject({ volume: 30, keypad: true });
   });
 
+  it('updates the home name', async () => {
+    const { app } = await setup();
+    const res = await json(app, 'PATCH', '/config', { home: { name: 'Lake House' } });
+    expect(res.json().home).toEqual({ name: 'Lake House' });
+    expect((await json(app, 'GET', '/snapshot')).json().config.home.name).toBe('Lake House');
+    expect(
+      (await json(app, 'PATCH', '/config', { home: { name: 'x'.repeat(41) } })).statusCode,
+    ).toBe(400);
+  });
+
   it('updates polling settings', async () => {
     const { app } = await setup();
     const res = await json(app, 'PATCH', '/config', { polling: { mirrorPrimaryMs: 750 } });

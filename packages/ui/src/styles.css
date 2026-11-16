@@ -13,7 +13,15 @@
   --bad: #ff6b6b;
   --primary: #b98cff;
   --radius: 16px;
+  /* density tokens (normal); overridden by [data-density] below */
   --tap: 44px;
+  --card-pad: 14px;
+  --card-gap: 10px;
+  --name-size: 17px;
+  --sub-size: 14px;
+  --toggle-w: 52px;
+  --toggle-h: 32px;
+  --thumb: 26px;
   --tabbar: 64px;
   font-family:
     system-ui,
@@ -88,6 +96,67 @@ button {
   gap: 12px;
   padding: calc(12px + env(safe-area-inset-top)) 0 12px;
   background: linear-gradient(var(--bg) 75%, transparent);
+}
+
+:root[data-density='compact'] {
+  --tap: 38px;
+  --card-pad: 10px;
+  --card-gap: 6px;
+  --name-size: 16px;
+  --sub-size: 13px;
+  --toggle-w: 44px;
+  --toggle-h: 26px;
+  --thumb: 22px;
+}
+
+:root[data-density='large'] {
+  --tap: 54px;
+  --card-pad: 18px;
+  --card-gap: 14px;
+  --name-size: 21px;
+  --sub-size: 16px;
+  --toggle-w: 62px;
+  --toggle-h: 38px;
+  --thumb: 32px;
+}
+
+.titles {
+  min-width: 0;
+}
+
+.home-name {
+  margin: 0 0 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-2);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.segmented {
+  display: flex;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+
+.segmented button {
+  flex: 1;
+  min-height: calc(var(--tap) - 8px);
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--text-2);
+  font-weight: 600;
+}
+
+.segmented button.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
 }
 
 .top h1 {
@@ -188,8 +257,8 @@ button {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 14px;
-  margin-bottom: 10px;
+  padding: var(--card-pad);
+  margin-bottom: var(--card-gap);
 }
 
 .card-head {
@@ -240,20 +309,20 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 17px;
+  font-size: var(--name-size);
   font-weight: 650;
 }
 
 .zone-title .sub {
   color: var(--text-2);
-  font-size: 14px;
+  font-size: var(--sub-size);
 }
 
 .zone-body {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-top: 12px;
+  gap: var(--card-gap);
+  margin-top: calc(var(--card-gap) + 2px);
 }
 
 .badge {
@@ -288,8 +357,8 @@ button {
 .toggle {
   position: relative;
   flex: none;
-  width: 52px;
-  height: 32px;
+  width: var(--toggle-w);
+  height: var(--toggle-h);
   padding: 0;
   border: 0;
   border-radius: 999px;
@@ -302,8 +371,8 @@ button {
   position: absolute;
   top: 3px;
   left: 3px;
-  width: 26px;
-  height: 26px;
+  width: calc(var(--toggle-h) - 6px);
+  height: calc(var(--toggle-h) - 6px);
   border-radius: 50%;
   background: #fff;
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
@@ -316,7 +385,7 @@ button {
 }
 
 .toggle.on .knob {
-  transform: translateX(20px);
+  transform: translateX(calc(var(--toggle-w) - var(--toggle-h)));
 }
 
 .toggle:disabled {
@@ -421,17 +490,17 @@ input[type='range']::-moz-range-progress {
 
 input[type='range']::-webkit-slider-thumb {
   appearance: none;
-  width: 26px;
-  height: 26px;
-  margin-top: -9px;
+  width: var(--thumb);
+  height: var(--thumb);
+  margin-top: calc((8px - var(--thumb)) / 2);
   border-radius: 50%;
   background: #fff;
   box-shadow: 0 1px 4px rgb(0 0 0 / 0.4);
 }
 
 input[type='range']::-moz-range-thumb {
-  width: 26px;
-  height: 26px;
+  width: var(--thumb);
+  height: var(--thumb);
   border: 0;
   border-radius: 50%;
   background: #fff;

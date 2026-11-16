@@ -60,6 +60,7 @@ export const api = {
   updateMirror: (id: string, input: MirrorInput) =>
     request<MirrorGroup>('PATCH', `/mirrors/${id}`, input),
   deleteMirror: (id: string) => request<void>('DELETE', `/mirrors/${id}`),
+  updateHome: (name: string | null) => request<Config>('PATCH', '/config', { home: { name } }),
   updatePolling: (polling: Partial<PollingConfig>) =>
     request<Config>('PATCH', '/config', { polling }),
   simulateKeypad: (zone: number, body: { patch?: ZonePatch; keypad?: boolean }) =>

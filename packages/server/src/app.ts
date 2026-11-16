@@ -54,6 +54,10 @@ const mirrorCreate = z.object({
 });
 const mirrorUpdate = mirrorCreate.partial();
 const configPatch = z.object({
+  home: z
+    .object({ name: z.string().max(40).nullable().optional() })
+    .strict()
+    .optional(),
   polling: PollingConfigSchema.partial().optional(),
   queue: QueueConfigSchema.partial().optional(),
 });
@@ -160,6 +164,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
       api.patch('/config', async (req) => {
         const body = configPatch.parse(req.body);
         return controller.updateSettings({
+          ...(body.home && { home: body.home }),
           ...(body.polling && { polling: body.polling }),
           ...(body.queue && { queue: body.queue }),
         });

@@ -1,4 +1,4 @@
-import type { MirrorGroup } from './config.ts';
+import type { Config, MirrorGroup } from './config.ts';
 import type { ZoneId, ZonePatch, ZoneState } from './model.ts';
 import type { SourceView } from './views.ts';
 
@@ -36,6 +36,7 @@ export type ControllerEvent =
       reason: DetachReason;
       property?: string;
     }
+  | { type: 'config.updated'; config: Config }
   | { type: 'connection.changed'; status: ConnectionStatus; error?: string }
   | { type: 'command.failed'; zone?: ZoneId; patch?: ZonePatch; error: string };
 

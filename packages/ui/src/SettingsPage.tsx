@@ -3,7 +3,7 @@ import type { PollingConfig } from '@open-zone/shared';
 import { api } from './api.ts';
 import { Icon, NameInput, StatusPill, Toggle } from './components.tsx';
 import { sourceLabel, zoneLabel } from './format.ts';
-import { run, toast, useApp } from './store.ts';
+import { run, setDensity, toast, useApp, type Density } from './store.ts';
 
 function Connection() {
   const system = useApp((s) => s.system);
@@ -248,10 +248,56 @@ function Polling() {
   );
 }
 
+const DENSITIES: Array<{ id: Density; label: string }> = [
+  { id: 'compact', label: 'Compact' },
+  { id: 'normal', label: 'Normal' },
+  { id: 'large', label: 'Large' },
+];
+
+function HomeAndDisplay() {
+  const homeName = useApp((s) => s.config?.home.name ?? null);
+  const density = useApp((s) => s.density);
+  return (
+    <section className="card">
+      <div className="card-head">
+        <h3>Home</h3>
+      </div>
+      <div className="field">
+        <span>Home name</span>
+        <NameInput
+          label="Home name"
+          value={homeName}
+          placeholder="e.g. Lake House"
+          onSave={(name) => void run(() => api.updateHome(name))}
+        />
+      </div>
+      <div className="field">
+        <span>Spacing</span>
+        <div className="segmented" role="radiogroup" aria-label="Spacing">
+          {DENSITIES.map((d) => (
+            <button
+              type="button"
+              key={d.id}
+              role="radio"
+              aria-checked={density === d.id}
+              className={density === d.id ? 'active' : ''}
+              onClick={() => setDensity(d.id)}
+            >
+              {d.label}
+            </button>
+          ))}
+        </div>
+        <span className="muted-text small">Saved on this device only.</span>
+      </div>
+    </section>
+  );
+}
+
 export function SettingsPage() {
   const simulator = useApp((s) => s.system?.simulator);
   return (
     <>
+      <HomeAndDisplay />
       <Connection />
       {simulator && <Simulator />}
       <Names />

@@ -435,16 +435,26 @@ export class Controller {
     return this.updateSource(source, { name });
   }
 
+  /** Update home, polling and queue settings. Pass `home.name: null` to clear the name. */
   async updateSettings(input: {
+    home?: { name?: string | null };
     polling?: Partial<PollingConfig>;
     queue?: Partial<QueueConfig>;
   }): Promise<Config> {
     const polling = PollingConfigSchema.parse({ ...this.config.polling, ...input.polling });
     const queue = QueueConfigSchema.parse({ ...this.config.queue, ...input.queue });
-    await this.saveConfig({ ...this.config, polling, queue });
+    const home = { ...this.config.home };
+    if (input.home && 'name' in input.home) {
+      const name = input.home.name?.trim();
+      if (name) home.name = name;
+      else delete home.name;
+    }
+    await this.saveConfig({ ...this.config, home, polling, queue });
     this.scheduler.configure(polling);
     this.queue.setGap(queue.interCommandGapMs);
-    return this.getConfig();
+    const config = this.getConfig();
+    this.emit({ type: 'config.updated', config });
+    return config;
   }
 
   // ───────────────────────────── mirrors ─────────────────────────────
