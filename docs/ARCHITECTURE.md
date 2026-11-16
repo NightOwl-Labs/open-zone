@@ -185,7 +185,7 @@ With one master, the mirror poll uses about 10–15% of the bus. All intervals a
 **Write path (API → hardware):**
 
 1. Validate the request against the model descriptor.
-2. Queue the writes, sending **only the properties that changed**.
+2. Queue the writes. An API write sends every property in the request, because the cache may be stale when nothing is polling. A mirror fan-out sends **only the properties that differ** from the child's cached state.
 3. While a write is pending, poll results for _that property of that zone_ are ignored, so a stale poll cannot undo a write that is still in flight.
 4. When the amp acknowledges the write, update the cache and emit `zone.changed`.
 5. If the zone is a mirror master, the MirrorEngine sends the change to its children straight away (R5) through the same path and updates their cache. The next poll then sees no difference.

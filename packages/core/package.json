@@ -5,5 +5,11 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@open-zone/shared": "*"
+  },
+  "devDependencies": {
+    "@open-zone/drivers": "*"
   }
 }

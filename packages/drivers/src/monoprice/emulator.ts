@@ -89,7 +89,17 @@ export class MonopriceEmulator {
     z.keypad = connected;
   }
 
-  /** Simulate the serial link dropping (cable pulled, amp power loss). */
+  private responding = true;
+
+  /**
+   * Stop (or resume) answering while the link stays up — what the host sees
+   * when the amp loses power but the USB adapter does not.
+   */
+  setResponding(responding: boolean): void {
+    this.responding = responding;
+  }
+
+  /** Simulate the serial link dropping (cable pulled, adapter unplugged). */
   dropLink(): void {
     for (const t of this.transports) t.drop();
   }
@@ -97,6 +107,7 @@ export class MonopriceEmulator {
   /** @internal Process one command and return the bytes the amp sends back. */
   handle(raw: string): string {
     this.received.push(raw);
+    if (!this.responding) return '';
     const echo = this.opts.echo ? `${raw}\r` : '';
     const cmd = parseCommand(raw);
     switch (cmd.kind) {
