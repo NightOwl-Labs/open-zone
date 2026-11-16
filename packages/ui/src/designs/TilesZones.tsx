@@ -4,38 +4,9 @@ import { useApp } from '../store.ts';
 import type { ZoneItemProps } from '../ZonesPage.tsx';
 import { change, isFollowing } from '../zoneParts.tsx';
 import { sourceHue, sourceIcon } from './visuals.ts';
+import { VolumeRing } from './VolumeRing.tsx';
 
 const MAX = 38;
-
-function VolumeRing({ value, muted }: { value: number; muted: boolean }) {
-  const r = 26;
-  const c = 2 * Math.PI * r;
-  const arc = 0.75; // 270° gauge, open at the bottom
-  const filled = (value / MAX) * arc * c;
-  return (
-    <svg className="t-ring" viewBox="0 0 64 64" aria-hidden>
-      <circle
-        cx="32"
-        cy="32"
-        r={r}
-        className="t-ring-track"
-        strokeDasharray={`${arc * c} ${c}`}
-        transform="rotate(135 32 32)"
-      />
-      <circle
-        cx="32"
-        cy="32"
-        r={r}
-        className="t-ring-fill"
-        strokeDasharray={`${filled} ${c}`}
-        transform="rotate(135 32 32)"
-      />
-      <text x="32" y="37" textAnchor="middle" className="t-ring-text">
-        {muted ? '—' : value}
-      </text>
-    </svg>
-  );
-}
 
 /** Tiles: rooms as colored tiles with a volume ring and quick −/mute/+ controls. */
 export function RoomTile({ z, onOpen }: ZoneItemProps) {

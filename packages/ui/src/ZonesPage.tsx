@@ -1,6 +1,7 @@
 import type { ZoneView } from '@open-zone/shared';
 import { ConsoleStrip } from './designs/ConsoleZones.tsx';
 import { StudioRow } from './designs/StudioZones.tsx';
+import { TileDetail } from './designs/TileDetail.tsx';
 import { RoomTile } from './designs/TilesZones.tsx';
 import type { Design } from './design.ts';
 import { Toggle } from './components.tsx';
@@ -107,23 +108,17 @@ export function ZonesPage({
       </div>
     );
   }
-  const units = [...new Set(zones.map((z) => Math.floor(z.zone / 10)))];
+  // Units and zone numbers are wiring details: they belong in Settings, not here.
+  const Item = ITEM[design];
+  const Detail = design === 'tiles' ? TileDetail : ZoneDetail;
   return (
     <>
-      {units.map((u) => (
-        <section key={u} className="group">
-          {units.length > 1 && <h3 className="group-title">Unit {u}</h3>}
-          <div className={`zone-list zone-list-${design}`}>
-            {zones
-              .filter((z) => Math.floor(z.zone / 10) === u)
-              .map((z) => {
-                const Item = ITEM[design];
-                return <Item key={z.zone} z={z} onOpen={() => onOpen(z.zone)} />;
-              })}
-          </div>
-        </section>
-      ))}
-      {open !== null && <ZoneDetail zone={open} onClose={onClose} />}
+      <div className={`zone-list zone-list-${design}`}>
+        {zones.map((z) => (
+          <Item key={z.zone} z={z} onOpen={() => onOpen(z.zone)} />
+        ))}
+      </div>
+      {open !== null && <Detail zone={open} onClose={onClose} />}
     </>
   );
 }

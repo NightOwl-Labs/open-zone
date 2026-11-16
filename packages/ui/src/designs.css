@@ -755,3 +755,116 @@
   width: 20px;
   height: 20px;
 }
+
+/* ───── Tiles: zone detail sheet matches the tile ───── */
+
+.sheet-tiles {
+  overflow: hidden;
+}
+
+.sheet-tiles .sheet-head.has-hero {
+  position: relative;
+}
+
+.sheet-tiles .sheet-head.has-hero > .icon-btn {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 2;
+  background: rgb(0 0 0 / 0.18);
+  color: inherit;
+  backdrop-filter: blur(6px);
+}
+
+.td-hero {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  min-height: 190px;
+  padding: 64px var(--pad-x) var(--pad-x);
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.td-hero.on {
+  color: #fff;
+  background:
+    radial-gradient(120% 90% at 100% 0%, hsl(calc(var(--hue) + 25) 85% 62% / 0.9), transparent 60%),
+    linear-gradient(150deg, hsl(var(--hue) 70% 48%), hsl(calc(var(--hue) + 20) 65% 34%));
+}
+
+.td-hero.on.muted {
+  filter: saturate(0.35);
+}
+
+.td-hero.following {
+  background: transparent;
+  border-bottom: 1px dashed var(--line);
+}
+
+.td-ring {
+  flex: none;
+  width: calc(var(--tap) * 2.1);
+  height: calc(var(--tap) * 2.1);
+}
+
+.td-ring .t-ring-text {
+  font-size: 16px;
+}
+
+.td-hero.following .t-ring-track {
+  stroke: var(--line);
+}
+
+.td-hero.following .t-ring-fill {
+  stroke: var(--text-2);
+}
+
+.td-text {
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 6px;
+}
+
+.td-text h2 {
+  margin: 0 0 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: calc(var(--name-size) + 8px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.td-hero:not(.on) .t-sub {
+  color: var(--text-2);
+}
+
+.td-power {
+  top: 12px;
+  right: 12px;
+}
+
+.td-volume {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.td-volume .slider-value {
+  display: none;
+}
+
+.td-off {
+  margin: 16px 0 4px;
+}
+
+/* Controls in the sheet take the zone's source color, like the tile. */
+.sheet-tiles.tinted {
+  --accent: hsl(var(--hue) 70% 52%);
+}
+
+.sheet-tiles.tinted .src-chip.active {
+  background: hsl(var(--hue) 70% 50% / 0.2);
+}

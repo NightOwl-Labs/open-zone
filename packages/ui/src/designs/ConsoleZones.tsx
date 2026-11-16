@@ -24,12 +24,8 @@ export function ConsoleStrip({ z, onOpen }: ZoneItemProps) {
       className={`c-strip${on ? ' on' : ''}${following ? ' following' : ''}${s?.mute ? ' muted' : ''}`}
       style={{ '--hue': sourceHue(s?.source) } as React.CSSProperties}
     >
-      <div className="c-tag">
-        {role?.kind === 'primary' && role.group.enabled
-          ? 'LEAD'
-          : following
-            ? 'FOLLOW'
-            : String(z.zone)}
+      <div className={`c-tag${role?.group.enabled ? ' mirror' : ''}`}>
+        {role?.kind === 'primary' && role.group.enabled ? 'LEAD' : following ? 'FOLLOW' : '\u00a0'}
       </div>
       <button
         type="button"

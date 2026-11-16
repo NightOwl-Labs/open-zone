@@ -107,31 +107,129 @@ export function VolumeRow({ z }: { z: ZoneView }) {
   );
 }
 
-export function ZoneDetail({ zone, onClose }: { zone: number; onClose: () => void }) {
+/** Explains why a follower has no controls, or shows a primary's mirror badge. */
+export function MirrorNote({ z }: { z: ZoneView }) {
+  const mirrors = useApp((s) => s.mirrors);
+  const zones = useApp((s) => s.zones);
+  const role = roleOf(z.zone, mirrors);
+  if (isFollowing(role)) {
+    return (
+      <p className="note">
+        <FollowingLine role={role} zones={zones} />
+        <br />
+        This zone copies its primary. To control it on its own, remove it from the mirror or pause
+        the mirror on the Mirrors tab. The volume offset is set there too.
+      </p>
+    );
+  }
+  return role ? (
+    <p className="note">
+      <RoleBadge role={role} zones={zones} />
+    </p>
+  ) : null;
+}
+
+/** Treble, bass, balance and do-not-disturb. */
+export function ToneControls({ z }: { z: ZoneView }) {
+  const s = z.state;
+  if (!s) return null;
+  return (
+    <>
+      <div className="field">
+        <span>Treble</span>
+        <Slider
+          label="Treble"
+          value={s.treble}
+          min={0}
+          max={14}
+          format={(v) => toneLabel(v)}
+          onCommit={(v) => change(z, { treble: v })}
+        />
+      </div>
+      <div className="field">
+        <span>Bass</span>
+        <Slider
+          label="Bass"
+          value={s.bass}
+          min={0}
+          max={14}
+          format={(v) => toneLabel(v)}
+          onCommit={(v) => change(z, { bass: v })}
+        />
+      </div>
+      <div className="field">
+        <span>Balance</span>
+        <Slider
+          label="Balance"
+          value={s.balance}
+          min={0}
+          max={20}
+          format={balanceLabel}
+          onCommit={(v) => change(z, { balance: v })}
+        />
+      </div>
+      <div className="field-row">
+        <span>Do not disturb</span>
+        <Toggle label="Do not disturb" checked={s.dnd} onChange={(v) => change(z, { dnd: v })} />
+      </div>
+    </>
+  );
+}
+
+export function ZoneNameField({ z }: { z: ZoneView }) {
+  return (
+    <div className="field">
+      <span>Name</span>
+      <NameInput
+        label="Zone name"
+        value={z.name}
+        placeholder={`Zone ${z.zone}`}
+        onSave={(name) => void run(() => api.updateZone(z.zone, { name }))}
+      />
+    </div>
+  );
+}
+
+/** Read-only status. Zone and unit numbers live in Settings, not here. */
+export function ZoneFacts({ z }: { z: ZoneView }) {
+  const sources = useApp((s) => s.sources);
+  const s = z.state;
+  return (
+    <dl className="facts">
+      {s && (
+        <>
+          <dt>Now</dt>
+          <dd>
+            {s.power ? 'On' : 'Off'} · {sourceLabel(sources, s.source)} · volume {s.volume}
+            {s.mute ? ' · muted' : ''}
+          </dd>
+        </>
+      )}
+      <dt>Wall keypad</dt>
+      <dd>{s ? (s.keypad ? 'Connected' : 'None') : '—'}</dd>
+      <dt>PA input</dt>
+      <dd>{s ? (s.pa ? 'Active' : 'Idle') : '—'}</dd>
+      <dt>Last read</dt>
+      <dd>{z.updatedAt ? new Date(z.updatedAt).toLocaleTimeString() : '—'}</dd>
+    </dl>
+  );
+}
+
+export interface ZoneDetailProps {
+  zone: number;
+  onClose: () => void;
+}
+
+export function ZoneDetail({ zone, onClose }: ZoneDetailProps) {
   const z = useApp((s) => s.zones).find((x) => x.zone === zone);
   const sources = useApp((s) => s.sources);
   const mirrors = useApp((s) => s.mirrors);
-  const zones = useApp((s) => s.zones);
   if (!z) return null;
-  const role = roleOf(zone, mirrors);
-  const following = isFollowing(role);
+  const following = isFollowing(roleOf(zone, mirrors));
   const s = z.state;
   return (
     <Sheet title={zoneLabel(z)} onClose={onClose}>
-      {following ? (
-        <p className="note">
-          <FollowingLine role={role} zones={zones} />
-          <br />
-          This zone copies its primary. To control it on its own, remove it from the mirror or pause
-          the mirror on the Mirrors tab. The volume offset is set there too.
-        </p>
-      ) : (
-        role && (
-          <p className="note">
-            <RoleBadge role={role} zones={zones} />
-          </p>
-        )
-      )}
+      <MirrorNote z={z} />
       {!s ? (
         <p className="muted-text">This zone hasn&apos;t been read from the amp yet.</p>
       ) : (
@@ -149,80 +247,12 @@ export function ZoneDetail({ zone, onClose }: { zone: number; onClose: () => voi
               <span>Volume</span>
               <VolumeRow z={z} />
             </div>
-            <div className="field">
-              <span>Treble</span>
-              <Slider
-                label="Treble"
-                value={s.treble}
-                min={0}
-                max={14}
-                format={(v) => toneLabel(v)}
-                onCommit={(v) => change(z, { treble: v })}
-              />
-            </div>
-            <div className="field">
-              <span>Bass</span>
-              <Slider
-                label="Bass"
-                value={s.bass}
-                min={0}
-                max={14}
-                format={(v) => toneLabel(v)}
-                onCommit={(v) => change(z, { bass: v })}
-              />
-            </div>
-            <div className="field">
-              <span>Balance</span>
-              <Slider
-                label="Balance"
-                value={s.balance}
-                min={0}
-                max={20}
-                format={balanceLabel}
-                onCommit={(v) => change(z, { balance: v })}
-              />
-            </div>
-            <div className="field-row">
-              <span>Do not disturb</span>
-              <Toggle
-                label="Do not disturb"
-                checked={s.dnd}
-                onChange={(v) => change(z, { dnd: v })}
-              />
-            </div>
+            <ToneControls z={z} />
           </>
         )
       )}
-      <div className="field">
-        <span>Name</span>
-        <NameInput
-          label="Zone name"
-          value={z.name}
-          placeholder={`Zone ${z.zone}`}
-          onSave={(name) => void run(() => api.updateZone(z.zone, { name }))}
-        />
-      </div>
-      <dl className="facts">
-        <dt>Zone</dt>
-        <dd>
-          {z.zone} (unit {Math.floor(z.zone / 10)})
-        </dd>
-        {s && (
-          <>
-            <dt>Now</dt>
-            <dd>
-              {s.power ? 'On' : 'Off'} · {sourceLabel(sources, s.source)} · volume {s.volume}
-              {s.mute ? ' · muted' : ''}
-            </dd>
-          </>
-        )}
-        <dt>Wall keypad</dt>
-        <dd>{s ? (s.keypad ? 'Connected' : 'None') : '—'}</dd>
-        <dt>PA input</dt>
-        <dd>{s ? (s.pa ? 'Active' : 'Idle') : '—'}</dd>
-        <dt>Last read</dt>
-        <dd>{z.updatedAt ? new Date(z.updatedAt).toLocaleTimeString() : '—'}</dd>
-      </dl>
+      <ZoneNameField z={z} />
+      <ZoneFacts z={z} />
     </Sheet>
   );
 }

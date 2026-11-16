@@ -912,3 +912,23 @@ input[type='range']::-moz-range-thumb {
 .name-list li.off .text {
   opacity: 0.5;
 }
+
+.unit-title {
+  margin: 14px 0 2px;
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.sheet-head.has-hero {
+  align-items: flex-start;
+  padding: 0;
+  border-bottom: 0;
+}
+
+.sheet-head.has-hero > :first-child {
+  flex: 1;
+  min-width: 0;
+}

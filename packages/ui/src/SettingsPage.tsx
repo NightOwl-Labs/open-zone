@@ -169,24 +169,31 @@ function Names() {
           Units are detected automatically, but each one always reports 6 zones. Turn off zones with
           no speakers to hide them. A zone in a mirror must be removed from it first.
         </p>
-        <ul className="name-list">
-          {zones.map((z) => (
-            <li key={z.zone} className={z.enabled ? '' : 'off'}>
-              <span className="idx">{z.zone}</span>
-              <NameInput
-                label={`Zone ${z.zone} name`}
-                value={z.name}
-                placeholder={`Zone ${z.zone}`}
-                onSave={(name) => void run(() => api.updateZone(z.zone, { name }))}
-              />
-              <Toggle
-                label={`Zone ${z.zone} enabled`}
-                checked={z.enabled}
-                onChange={(enabled) => void run(() => api.updateZone(z.zone, { enabled }))}
-              />
-            </li>
-          ))}
-        </ul>
+        {[...new Set(zones.map((z) => Math.floor(z.zone / 10)))].map((unit) => (
+          <div key={unit} className="unit-block">
+            <h4 className="unit-title">Unit {unit}</h4>
+            <ul className="name-list">
+              {zones
+                .filter((z) => Math.floor(z.zone / 10) === unit)
+                .map((z) => (
+                  <li key={z.zone} className={z.enabled ? '' : 'off'}>
+                    <span className="idx">{z.zone}</span>
+                    <NameInput
+                      label={`Zone ${z.zone} name`}
+                      value={z.name}
+                      placeholder={`Zone ${z.zone}`}
+                      onSave={(name) => void run(() => api.updateZone(z.zone, { name }))}
+                    />
+                    <Toggle
+                      label={`Zone ${z.zone} enabled`}
+                      checked={z.enabled}
+                      onChange={(enabled) => void run(() => api.updateZone(z.zone, { enabled }))}
+                    />
+                  </li>
+                ))}
+            </ul>
+          </div>
+        ))}
       </section>
     </>
   );

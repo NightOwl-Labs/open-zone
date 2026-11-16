@@ -126,10 +126,17 @@ export function Sheet({
   title,
   onClose,
   children,
+  className,
+  style,
+  hero,
 }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
+  className?: string;
+  style?: React.CSSProperties;
+  /** Replaces the plain title bar (the close button is kept). */
+  hero?: ReactNode;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -143,14 +150,15 @@ export function Sheet({
   return (
     <div className="sheet-backdrop" onClick={onClose}>
       <div
-        className="sheet"
+        className={`sheet${className ? ` ${className}` : ''}`}
+        style={style}
         role="dialog"
         aria-modal="true"
         aria-label={title}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sheet-head">
-          <h2>{title}</h2>
+        <div className={`sheet-head${hero ? ' has-hero' : ''}`}>
+          {hero ?? <h2>{title}</h2>}
           <button type="button" className="icon-btn" aria-label="Close" onClick={onClose}>
             <Icon name="close" />
           </button>
