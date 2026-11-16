@@ -2,13 +2,13 @@
 
 Each phase ends with something that can be demonstrated. Hardware is needed from Phase 2 onward. Everything else runs on the simulator.
 
-## Phase 0: Scaffold
+## Phase 0: Scaffold ✅
 
 - npm workspaces monorepo (`shared`, `core`, `drivers`, `server`, `ui`), TypeScript strict mode, ESLint, Prettier, vitest.
 - CI: lint, typecheck and test on every push.
 - **Done when:** `npm test` passes on a fresh clone.
 
-## Phase 1: Core and simulator (no hardware)
+## Phase 1: Core and simulator (no hardware) ✅
 
 - `shared`: zod schemas for ZoneState, ModelDescriptor, MirrorGroup, Config and API payloads.
 - `drivers/simulator`: an in-memory 18-zone amp with configurable latency and a "press the keypad" hook to simulate out-of-band changes.
@@ -16,12 +16,13 @@ Each phase ends with something that can be demonstrated. Hardware is needed from
 - MirrorEngine with full unit tests: immediate fan-out, poll-detected master change, the volume-offset rule, the detach rule, keypad rejection, and the no-chains rule.
 - **Done when:** the test suite covers every row of the mirror-engine table in ARCHITECTURE §7.
 
-## Phase 2: Monoprice driver and hardware bring-up
+## Phase 2: Monoprice driver and hardware bring-up — code ✅, hardware validation pending
 
 - Pure codec (`parseStatus`, `formatSet`) tested against fixtures.
 - Serial transport (`serialport`) and a TCP transport.
 - `oz-probe` CLI: list ports, open a port, `?10`/`?20`/`?30`, set and read back, measure RTT, capture raw bytes as new fixtures.
 - **Hardware checks:** cable chipset and pinout (straight-through vs null-modem), echo and prompt format, the LS keypad field on zones with and without keypads, command spacing that never drops a command, actual timings for single-zone and unit queries.
+- Built ahead of plan: the PollScheduler tiers and reconnect/recovery logic (planned for Phase 3) live in the core and are tested against the emulator.
 - **Done when:** `oz-probe` controls all installed zones, and measured timings are recorded in `docs/hardware-notes.md`. If needed, the default poll intervals are revised.
 
 ## Phase 3: Server

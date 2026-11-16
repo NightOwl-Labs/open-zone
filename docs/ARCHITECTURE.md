@@ -45,6 +45,7 @@ Python's two real advantages are `pymonoprice` as a reference and a native Home 
 **Stack**
 
 - **Runtime:** Node.js 24 LTS. **Use 64-bit Raspberry Pi OS (arm64)** on the Pi 3, because current Node builds target arm64.
+- **No build step:** Node runs the TypeScript sources directly (type stripping, Node ≥ 22.18). The code uses only erasable syntax: no enums, no parameter properties. `tsc` is used only to typecheck. Deploying is `git pull && npm ci --omit=dev`.
 - **Server:** Fastify, `@fastify/websocket`, `@fastify/static`, `@fastify/swagger`.
 - **Validation and contract:** zod. One schema package is used by the server, the UI and tests.
 - **Serial:** `serialport`.
@@ -75,7 +76,7 @@ Python's two real advantages are `pymonoprice` as a reference and a native Home 
  │ Drivers: monoprice-10761,    │
  │          simulator           │
  └──────────────┬───────────────┘
-                │ Transport interface (+ CommandQueue)
+                │ Transport interface
  ┌──────────────▼───────────────┐
  │ serial (USB-RS232) · tcp     │
  └──────────────────────────────┘
@@ -135,7 +136,7 @@ interface AmpDriver {
 }
 ```
 
-**CommandQueue** sits between the driver and the transport. It is the only path to the wire.
+**CommandQueue** lives in the core and wraps every driver call. It is the only path to the wire, and drivers assume their calls are serialized.
 
 - One command is in flight at a time, with a per-command timeout and retry.
 - There is a configurable inter-command gap, because the amp drops commands sent back to back.
@@ -304,7 +305,7 @@ packages/
   server/    Fastify app, config store, entrypoint, systemd/udev assets
   ui/        React + Vite PWA
 tools/
-  oz-probe   CLI for hardware bring-up: list ports, query zones, measure RTT
+  oz-probe   Hardware validation CLI: answers the open hardware questions and writes a report (see docs/hardware-validation.md)
 docs/
 ```
 

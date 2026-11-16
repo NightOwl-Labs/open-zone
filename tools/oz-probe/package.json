@@ -5,5 +5,9 @@
   "type": "module",
   "bin": {
     "oz-probe": "./src/cli.ts"
+  },
+  "dependencies": {
+    "@open-zone/drivers": "*",
+    "@open-zone/shared": "*"
   }
 }
