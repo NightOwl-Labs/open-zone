@@ -331,6 +331,12 @@ const ICONS = {
       <path d="M17 8.5a5 5 0 0 1 0 7M19.5 6a8.5 8.5 0 0 1 0 12" />
     </>
   ),
+  quieter: (
+    <>
+      <path d="M4 9h4l5-4v14l-5-4H4z" />
+      <path d="M17 10a2.8 2.8 0 0 1 0 4" />
+    </>
+  ),
   chevron: <path d="M9 6l6 6-6 6" />,
   plus: <path d="M12 5v14M5 12h14" />,
   link: (

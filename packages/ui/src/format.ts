@@ -26,16 +26,27 @@ export function offsetLabel(n: number): string {
 
 export type Role =
   | { kind: 'primary'; group: MirrorGroup }
-  | { kind: 'follower'; group: MirrorGroup; volumeOffset: number }
+  | { kind: 'follower'; group: MirrorGroup; volumeOffset: number; sub: boolean }
   | null;
 
 export function roleOf(zone: number, mirrors: MirrorGroup[]): Role {
   for (const g of mirrors) {
     if (g.primary === zone) return { kind: 'primary', group: g };
     const c = g.followers.find((x) => x.zone === zone);
-    if (c) return { kind: 'follower', group: g, volumeOffset: c.volumeOffset };
+    if (c) return { kind: 'follower', group: g, volumeOffset: c.volumeOffset, sub: c.sub ?? false };
   }
   return null;
+}
+
+/** Sub level relative to the primary's volume: "0", "+3", "−2". */
+export function levelLabel(n: number): string {
+  return n === 0 ? '0' : offsetLabel(n);
+}
+
+/** Subwoofer followers of an enabled mirror led by this zone. */
+export function subsLedBy(zone: number, mirrors: MirrorGroup[]) {
+  const g = mirrors.find((m) => m.primary === zone && m.enabled);
+  return g ? g.followers.filter((c) => c.sub).map((c) => ({ group: g, follower: c })) : [];
 }
 
 export function groupLabel(g: MirrorGroup, zones: ZoneView[]): string {

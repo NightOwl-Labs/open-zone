@@ -4,9 +4,10 @@ Phone-first control for RS-232 multi-zone amplifiers, running on a Raspberry Pi 
 
 - **Zones:** power, source, volume, mute, tone, balance and do-not-disturb for every zone
 - **Mirrors:** followers copy a primary zone, with a per-follower volume offset; wall-keypad changes on the primary are followed within about half a second
-- **Scenes:** any number of them, each with one source, a preset volume per zone and optional "turn others off"; plus **All off**
+- **Subwoofers:** mark a follower as a subwoofer to drive a sub from that zone's preamp output. It keeps its own bass, treble and balance, and its level can be changed from the room's tile
+- **Scenes:** any number of them, each with one source, a preset volume per zone and optional "turn others off"; plus **All off**, **Mute all** and **Lower all** (each with a one-tap undo)
 - **Naming:** zones, sources and the home; hide unused zones and sources
-- **Designs:** four (Classic, Studio, Console, Tiles), with compact, normal and large spacing
+- **Designs:** four (Tiles by default, Studio, Console, Classic), with compact, normal and large spacing; each device remembers its choice
 - **Recovery:** comes back automatically after a power loss
 - **Simulator:** a built-in amp emulator, so everything can be tried without hardware
 
@@ -122,10 +123,10 @@ journalctl -u open-zone -f              # live log (Ctrl+C stops watching)
 
 ### 9. Set it up in the app
 
-- **Settings → Home:** name your home, and choose spacing and a design for this device. Each design has its own address, e.g. `/console` for a wall tablet.
+- **Settings → Home:** name your home, and choose spacing and a design for this device. The device remembers the design; each also has its own address, e.g. `/console` for a wall tablet.
 - **Settings → Sources and Zones:** name them, and switch off any that aren't connected. The amp can't detect which inputs or zones are in use.
-- **Mirrors:** pick a primary zone and followers. Followers must be zones **without** a wall keypad.
-- **Scenes:** create one-tap presets. They appear at the top of the Zones screen next to **All off**.
+- **Mirrors:** pick a primary zone and followers. Followers must be zones **without** a wall keypad. Switch on **Subwoofer** for a follower whose preamp output feeds a sub.
+- **Scenes:** create one-tap presets. They appear at the top of the Zones screen next to **All off**, **Mute all** and **Lower all**.
 - On your phone, use **Share → Add to Home Screen** for an app-like icon.
 
 ---

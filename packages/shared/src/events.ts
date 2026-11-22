@@ -1,6 +1,6 @@
 import type { Config, MirrorGroup, Scene } from './config.ts';
 import type { ZoneId, ZonePatch, ZoneState } from './model.ts';
-import type { SourceView } from './views.ts';
+import type { QuietView, SourceView } from './views.ts';
 
 /** What caused a state change. */
 export type ChangeOrigin =
@@ -41,6 +41,13 @@ export type ControllerEvent =
   | { type: 'scene.deleted'; sceneId: string }
   | ({ type: 'scene.activated'; sceneId: string } & ActivationResult)
   | ({ type: 'zones.allOff' } & ActivationResult)
+  | {
+      type: 'quiet.changed';
+      action: 'mute-all' | 'unmute-all' | 'lower-all' | 'restore-volume';
+      quiet: QuietView;
+      /** Zones commanded by this action. */
+      applied: ZoneId[];
+    }
   | { type: 'connection.changed'; status: ConnectionStatus; error?: string }
   | { type: 'command.failed'; zone?: ZoneId; patch?: ZonePatch; error: string };
 

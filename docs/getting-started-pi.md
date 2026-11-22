@@ -35,7 +35,8 @@ The emulator acts like three stacked 10761 units (18 zones). Zones 11–15, 21�
 
 ### Things to try
 
-- **Scenes:** create a scene (for example Dinner: three zones on one source, each at its own volume, other zones off), then use its button at the top of the Zones screen. **All off** sits next to it.
+- **Scenes:** create a scene (for example Dinner: three zones on one source, each at its own volume, other zones off), then use its button at the top of the Zones screen. **All off**, **Mute all** and **Lower all** sit next to it; the last two turn into **Unmute all** and **Restore volume** while they're in effect.
+- **Subwoofer:** on the Mirrors tab, make zone 16 follow zone 11 and switch on **Subwoofer**. Zone 11's tile then gets a **Sub − +** row, and zone 16's sheet has its own bass, treble and balance.
 
 - **Settings → Home:** name your home (shown at the top of every screen) and pick compact, normal or large spacing for this device.
 

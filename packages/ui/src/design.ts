@@ -1,15 +1,22 @@
 /**
- * Visual designs. Each lives at its own root path and shares every behavior
- * (store, actions, mirror editor, settings); only layout and styling differ.
- *   /          classic  — the functional test layout
+ * Visual designs. Each has its own path and shares every behavior (store,
+ * actions, mirror editor, settings); only layout and styling differ.
+ *   /tiles     tiles    — room tiles with volume rings, colored by source (default)
  *   /studio    studio   — warm, light-first list with source chips
  *   /console   console  — dark mixing-desk channel strips with faders
- *   /tiles     tiles    — room tiles with volume rings, colored by source
+ *   /classic   classic  — the functional test layout
+ *
+ * "/" opens the design last used on this device (Tiles the first time).
+ * Visiting a design's own path makes it this device's design, so a home-screen
+ * app (which always starts at "/") reopens whatever was picked last, while a
+ * wall tablet can still bookmark /console.
  */
 export type Design = 'classic' | 'studio' | 'console' | 'tiles';
 
+export const DEFAULT_DESIGN: Design = 'tiles';
+
 export const DESIGNS: Array<{ id: Design; label: string; root: string; blurb: string }> = [
-  { id: 'classic', label: 'Classic', root: '/', blurb: 'The original functional layout' },
+  { id: 'tiles', label: 'Tiles', root: '/tiles/', blurb: 'Room tiles with volume rings' },
   { id: 'studio', label: 'Studio', root: '/studio/', blurb: 'Warm, calm list with source icons' },
   {
     id: 'console',
@@ -17,19 +24,41 @@ export const DESIGNS: Array<{ id: Design; label: string; root: string; blurb: st
     root: '/console/',
     blurb: 'Mixing-desk faders, great on tablets',
   },
-  { id: 'tiles', label: 'Tiles', root: '/tiles/', blurb: 'Room tiles with volume rings' },
+  { id: 'classic', label: 'Classic', root: '/classic/', blurb: 'The original functional layout' },
 ];
 
-export function designFromPath(pathname: string): Design {
-  const first = pathname.split('/').filter(Boolean)[0];
-  return DESIGNS.find((d) => d.id === first && d.id !== 'classic')?.id ?? 'classic';
+const STORAGE_KEY = 'open-zone.design';
+
+function isDesign(v: unknown): v is Design {
+  return DESIGNS.some((d) => d.id === v);
 }
 
-export const design: Design = designFromPath(location.pathname);
-export const designRoot = DESIGNS.find((d) => d.id === design)!.root;
+/** The design named by the path, or null for "/" and unknown paths. */
+export function designFromPath(pathname: string): Design | null {
+  const first = pathname.split('/').filter(Boolean)[0];
+  return isDesign(first) ? first : null;
+}
+
+function savedDesign(): Design | null {
+  try {
+    const v = localStorage.getItem(STORAGE_KEY);
+    return isDesign(v) ? v : null;
+  } catch {
+    return null; // storage blocked (private mode etc.)
+  }
+}
+
+function saveDesign(d: Design): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, d);
+  } catch {
+    /* not persisted, but still used for this visit */
+  }
+}
+
+const fromPath = designFromPath(location.pathname);
+if (fromPath) saveDesign(fromPath);
+
+export const design: Design = fromPath ?? savedDesign() ?? DEFAULT_DESIGN;
 
 document.documentElement.dataset.design = design;
-
-// Home-screen installs should reopen the same design.
-const manifest = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
-if (manifest) manifest.href = `/api/v1/manifest.webmanifest?root=${encodeURIComponent(designRoot)}`;

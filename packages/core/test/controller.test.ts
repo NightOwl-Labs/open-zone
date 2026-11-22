@@ -185,6 +185,76 @@ describe('Controller: all off', () => {
   });
 });
 
+describe('Controller: mute all and lower all', () => {
+  async function playing() {
+    const t = await setup({ amp: { ignoreSetsWhenOff: true } });
+    t.amp.pressKeypad(11, { power: true, volume: 20 });
+    t.amp.pressKeypad(13, { power: true, volume: 6 });
+    t.amp.pressKeypad(14, { power: true, volume: 15, mute: true }); // already muted
+    await t.ctl.createMirror({ primary: 11, followers: [{ zone: 12, volumeOffset: 2 }] });
+    await t.ctl.refreshAll();
+    await t.ctl.whenIdle();
+    return t;
+  }
+
+  it('mutes playing zones and unmutes only the ones it muted', async () => {
+    const { ctl, amp, sets, ofType } = await playing();
+    const before = sets().length;
+    const quiet = await ctl.muteAll();
+    await ctl.whenIdle();
+    expect(quiet.muted.sort()).toEqual([11, 13]); // follower 12 follows; 14 was already muted
+    expect(sets().slice(before)).not.toContain('<14MU01');
+    for (const z of [11, 12, 13, 14]) expect(amp.getZone(z).mute).toBe(true);
+    expect(amp.getZone(15).mute).toBe(false); // off: untouched
+    expect(ctl.getSystem().quiet.muted.sort()).toEqual([11, 13]);
+
+    await ctl.unmuteAll();
+    await ctl.whenIdle();
+    for (const z of [11, 12, 13]) expect(amp.getZone(z).mute).toBe(false);
+    expect(amp.getZone(14).mute).toBe(true); // was muted before: stays muted
+    expect(ctl.getSystem().quiet.muted).toEqual([]);
+    expect(ofType('quiet.changed').map((e) => e.action)).toEqual(['mute-all', 'unmute-all']);
+    expect(ofType('mirror.followerDetached')).toHaveLength(0);
+  });
+
+  it('unmutes a zone that was switched off while muted once it is back on', async () => {
+    const { ctl, amp } = await playing();
+    await ctl.muteAll();
+    await ctl.setZone(13, { power: false });
+    await ctl.unmuteAll();
+    await ctl.whenIdle();
+    expect(amp.getZone(13).mute).toBe(true); // amp ignores sets while off
+    await ctl.setZone(13, { power: true });
+    await ctl.whenIdle();
+    expect(amp.getZone(13).mute).toBe(false);
+  });
+
+  it('lowers playing zones and restores them, keeping later manual changes', async () => {
+    const { ctl, amp } = await playing();
+    const quiet = await ctl.lowerAll(10);
+    await ctl.whenIdle();
+    expect(quiet.lowered).toEqual(
+      expect.arrayContaining([
+        { zone: 11, from: 20, to: 10 },
+        { zone: 13, from: 6, to: 0 },
+        { zone: 14, from: 15, to: 5 },
+      ]),
+    );
+    expect(amp.getZone(12).volume).toBe(12); // follower keeps its +2 offset
+    // Lowering again still restores to the original volume.
+    await ctl.lowerAll(3);
+    expect(amp.getZone(11).volume).toBe(7);
+    await ctl.setZone(14, { volume: 9 }); // someone turns 14 up by hand
+    await ctl.restoreVolume();
+    await ctl.whenIdle();
+    expect(amp.getZone(11).volume).toBe(20);
+    expect(amp.getZone(12).volume).toBe(22);
+    expect(amp.getZone(13).volume).toBe(6);
+    expect(amp.getZone(14).volume).toBe(9);
+    await expect(ctl.lowerAll(0)).rejects.toBeInstanceOf(PatchValidationError);
+  });
+});
+
 describe('Controller: scenes', () => {
   it('creates, updates and deletes scenes with validation', async () => {
     const { ctl, store } = await setup();
@@ -496,6 +566,45 @@ describe('Controller: mirror propagation', () => {
     await ctl.setZone(11, { volume: 30 });
     await ctl.whenIdle();
     expect(amp.getZone(12).volume).toBe(24);
+  });
+
+  it('runs a subwoofer follower: own tone, level relative to the primary', async () => {
+    const { ctl, amp, sets, ofType, store } = await mirrored();
+    await ctl.updateMirror('g1', { followers: [12, { zone: 13, volumeOffset: 2, sub: true }] });
+    await ctl.whenIdle();
+    expect(ctl.getZone(13).mirror).toEqual({
+      groupId: 'g1',
+      role: 'follower',
+      volumeOffset: 2,
+      sub: true,
+    });
+    expect(amp.getZone(13).volume).toBe(22);
+
+    // Tune the sub's own tone: it stays in the mirror and the primary's tone isn't copied.
+    await ctl.setZone(13, { bass: 13, treble: 0 });
+    await ctl.setZone(11, { bass: 5, source: 4 });
+    await ctl.whenIdle();
+    await sleep(350); // audits run
+    expect(ofType('mirror.followerDetached')).toHaveLength(0);
+    expect(amp.getZone(13)).toMatchObject({ bass: 13, treble: 0, source: 4 });
+    expect(amp.getZone(12)).toMatchObject({ bass: 5, source: 4 });
+
+    // Quick level change pushes only the sub's new volume and keeps the sub flag.
+    const before = sets().length;
+    await ctl.setFollowerLevel('g1', 13, -1);
+    await ctl.whenIdle();
+    expect(sets().slice(before)).toEqual(['<13VO19']);
+    expect(store.current.mirrors[0]?.followers).toEqual([
+      { zone: 12, volumeOffset: 0 },
+      { zone: 13, volumeOffset: -1, sub: true },
+    ]);
+    expect(ofType('mirror.offsetChanged')).toHaveLength(0); // no "learned offset" toast
+
+    // Editing the group without mentioning sub keeps it.
+    await ctl.updateMirror('g1', { followers: [12, 13] });
+    expect(ctl.getMirror('g1').followers[1]).toEqual({ zone: 13, volumeOffset: -1, sub: true });
+    await expect(ctl.setFollowerLevel('g1', 14, 0)).rejects.toBeInstanceOf(NotFoundError);
+    await expect(ctl.setFollowerLevel('g1', 13, 99)).rejects.toBeInstanceOf(PatchValidationError);
   });
 
   it('stops pushing when a group is disabled and resyncs when re-enabled', async () => {

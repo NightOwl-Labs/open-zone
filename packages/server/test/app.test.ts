@@ -142,15 +142,47 @@ describe('REST API', () => {
     expect(emulator.getZone(21)).toMatchObject({ volume: 30, keypad: true });
   });
 
-  it('serves a manifest per design root', async () => {
+  it('serves one manifest that starts at the root (the device remembers its design)', async () => {
     const { app } = await setup();
     const m = await app.inject({ url: '/api/v1/manifest.webmanifest?root=/console/' });
     expect(m.headers['content-type']).toMatch(/manifest\+json/);
-    expect(m.json()).toMatchObject({ start_url: '/console/', scope: '/console/' });
-    const bad = await app.inject({
-      url: '/api/v1/manifest.webmanifest?root=https://evil.example/',
+    expect(m.json()).toMatchObject({ start_url: '/', scope: '/' });
+  });
+
+  it('mutes all and lowers all, then undoes each', async () => {
+    const { app, emulator } = await setup();
+    await json(app, 'PATCH', '/zones/11', { power: true, volume: 20 });
+    expect((await json(app, 'POST', '/zones/mute-all')).json().muted).toEqual([11]);
+    expect(emulator.getZone(11).mute).toBe(true);
+    expect((await json(app, 'GET', '/snapshot')).json().system.quiet.muted).toEqual([11]);
+    expect((await json(app, 'POST', '/zones/unmute-all')).json().muted).toEqual([]);
+    expect(emulator.getZone(11).mute).toBe(false);
+    const lowered = await json(app, 'POST', '/zones/lower-all', { steps: 4 });
+    expect(lowered.json().lowered).toEqual([{ zone: 11, from: 20, to: 16 }]);
+    await json(app, 'POST', '/zones/restore-volume');
+    expect(emulator.getZone(11).volume).toBe(20);
+    expect((await json(app, 'POST', '/zones/lower-all', { steps: 0 })).statusCode).toBe(400);
+  });
+
+  it('sets a subwoofer follower level', async () => {
+    const { app, emulator } = await setup();
+    await json(app, 'PATCH', '/zones/11', { power: true, volume: 20 });
+    const created = await json(app, 'POST', '/mirrors', {
+      primary: 11,
+      followers: [{ zone: 14, sub: true }],
     });
-    expect(bad.json().start_url).toBe('/');
+    expect(created.json().followers).toEqual([{ zone: 14, volumeOffset: 0, sub: true }]);
+    const id = created.json().id;
+    const res = await json(app, 'PUT', `/mirrors/${id}/followers/14/level`, { volumeOffset: 3 });
+    expect(res.json().followers).toEqual([{ zone: 14, volumeOffset: 3, sub: true }]);
+    await vi.waitFor(() => expect(emulator.getZone(14).volume).toBe(23));
+    expect(
+      (await json(app, 'PUT', `/mirrors/${id}/followers/14/level`, { volumeOffset: 40 }))
+        .statusCode,
+    ).toBe(400);
+    expect(
+      (await json(app, 'PUT', `/mirrors/${id}/followers/15/level`, { volumeOffset: 1 })).statusCode,
+    ).toBe(404);
   });
 
   it('turns all zones off and manages scenes', async () => {

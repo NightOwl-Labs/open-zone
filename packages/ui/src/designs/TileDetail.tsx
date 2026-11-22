@@ -3,11 +3,13 @@ import { roleOf, sourceLabel, zoneLabel } from '../format.ts';
 import { useApp } from '../store.ts';
 import {
   MirrorNote,
+  SubControls,
   ToneControls,
   ZoneFacts,
   ZoneNameField,
   change,
   isFollowing,
+  isSub,
   type ZoneDetailProps,
 } from '../zoneParts.tsx';
 import { SourceChips } from './SourceChips.tsx';
@@ -45,7 +47,11 @@ export function TileDetail({ zone, onClose }: ZoneDetailProps) {
       <div className="td-text">
         <h2>{zoneLabel(z)}</h2>
         <span className="t-sub">
-          {following ? (
+          {isSub(role) ? (
+            <>
+              <Icon name="link" /> Subwoofer for {primary ? zoneLabel(primary) : ''}
+            </>
+          ) : following ? (
             <>
               <Icon name="link" /> Following {primary ? zoneLabel(primary) : ''}
             </>
@@ -127,9 +133,11 @@ export function TileDetail({ zone, onClose }: ZoneDetailProps) {
               </button>
             </div>
           </div>
+          <SubControls z={z} />
           <ToneControls z={z} />
         </>
       )}
+      {following && <SubControls z={z} />}
       {s && !on && !following && (
         <p className="muted-text td-off">Turn the zone on to choose a source and adjust volume.</p>
       )}

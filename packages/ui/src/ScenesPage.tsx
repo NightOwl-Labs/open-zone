@@ -6,15 +6,44 @@ import { roleOf, sourceLabel, zoneLabel } from './format.ts';
 import { errorText, run, useApp } from './store.ts';
 
 const MAX_VOL = 38;
+/** How far Lower all turns every playing zone down (of 38 steps). */
+const LOWER_STEPS = 10;
 
-/** Quick actions above the zone list: All off, then one button per scene. */
+/**
+ * Quick actions above the zone list: All off, Mute all and Lower all (each
+ * becomes its undo while active), then one button per scene.
+ */
 export function QuickBar() {
   const scenes = useApp((s) => s.scenes);
+  const quiet = useApp((s) => s.system?.quiet);
+  const zones = useApp((s) => s.zones);
+  const stateOf = (zone: number) => zones.find((z) => z.zone === zone)?.state;
+  // Active while at least one zone is still as Mute all / Lower all left it.
+  const muted = quiet?.muted.some((z) => stateOf(z)?.mute) ?? false;
+  const lowered = quiet?.lowered.some((l) => stateOf(l.zone)?.volume === l.to) ?? false;
   return (
     <div className="quick-bar" role="toolbar" aria-label="Quick actions">
       <button type="button" className="quick all-off" onClick={() => void run(() => api.allOff())}>
         <Icon name="power" />
         All off
+      </button>
+      <button
+        type="button"
+        className={`quick quiet${muted ? ' active' : ''}`}
+        aria-pressed={muted}
+        onClick={() => void run(() => (muted ? api.unmuteAll() : api.muteAll()))}
+      >
+        <Icon name={muted ? 'speaker' : 'muted'} />
+        {muted ? 'Unmute all' : 'Mute all'}
+      </button>
+      <button
+        type="button"
+        className={`quick quiet${lowered ? ' active' : ''}`}
+        aria-pressed={lowered}
+        onClick={() => void run(() => (lowered ? api.restoreVolume() : api.lowerAll(LOWER_STEPS)))}
+      >
+        <Icon name={lowered ? 'speaker' : 'quieter'} />
+        {lowered ? 'Restore volume' : 'Lower all'}
       </button>
       {scenes.map((sc) => (
         <button

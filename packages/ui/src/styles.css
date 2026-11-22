@@ -973,6 +973,16 @@ input[type='range']::-moz-range-thumb {
   color: var(--bad);
 }
 
+.quick.quiet .icon {
+  color: var(--warn);
+}
+
+/* Mute all / Lower all is in effect: the button is now its undo. */
+.quick.quiet.active {
+  border-color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 16%, var(--surface));
+}
+
 .quick:active {
   transform: scale(0.97);
 }
@@ -994,4 +1004,45 @@ input[type='range']::-moz-range-thumb {
 
 .card.scene .btn.primary {
   flex: none;
+}
+
+/* Subwoofer level stepper in detail sheets (every design). */
+.sheet-sub-level {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sheet-sub-level button {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--tap);
+  height: var(--tap);
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.sheet-sub-level output {
+  flex: 1;
+  text-align: center;
+  font-size: var(--value-size);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.sheet-sub-level .sub-level-label {
+  display: none; /* the field label already says "Sub level" */
+}
+
+.follower-sub {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0 2px 36px;
+  font-size: 14px;
 }

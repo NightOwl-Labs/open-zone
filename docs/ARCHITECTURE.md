@@ -23,6 +23,8 @@ Status: draft, 2026-11-15.
 | R9b | A zone following an active mirror shows no controls of its own, only what it follows. Each follower has a volume offset that can be set in the mirror editor (±38) or learned from a direct volume change.                                                                                                                           | user   |
 | R9c | Units are auto-detected (a unit is present if its first zone answers). Zones are not: every unit reports 6 zones whether or not speakers are wired. Zones can therefore be disabled, which hides them, rejects commands to them and keeps them out of mirrors. A zone in a mirror must be removed from it before it can be disabled. | user   |
 | R9d | "All off" turns every enabled zone off at once. There can be any number of scenes, each with a name, one source, a preset volume per zone and an optional "turn other zones off". Activating a scene skips followers of active mirrors and never detaches them.                                                                      | user   |
+| R9e | A follower can be marked as a subwoofer (its zone's preamp output feeds a sub). It follows power, source, mute, DND and volume plus offset (the "sub level"), but keeps its own treble, bass and balance. The sub level can be changed quickly from the Tiles screen.                                                                | user   |
+| R9f | "Mute all" mutes and "Lower all" turns down every zone that's on (mirror followers follow their primary). Each undo touches only the zones it changed and skips zones changed by hand since. Undo for a zone that is off is applied when it next powers on. This state is kept in memory only.                                       | user   |
 | R10 | Other multi-zone amp models can be added later. Integrations (MQTT, Home Assistant) and auth can be added later **without changing core decisions**.                                                                                                                                                                                 | user   |
 | R11 | Local network only, no auth in v1. No user roles, ever.                                                                                                                                                                                                                                                                              | user   |
 
@@ -211,7 +213,8 @@ interface MirrorGroup {
   name?: string;
   enabled: boolean;
   primary: ZoneId;
-  followers: { zone: ZoneId; volumeOffset: number }[]; // offset starts at 0
+  // offset starts at 0; sub: subwoofer follower that keeps its own treble/bass/balance
+  followers: { zone: ZoneId; volumeOffset: number; sub?: boolean }[];
 }
 ```
 
@@ -255,25 +258,28 @@ The cache is **not** persisted, because the amp is the source of truth. Only con
 
 All JSON. Schemas come from the shared zod package and are published as OpenAPI at `/api/v1/docs`.
 
-| Method         | Path                          | Purpose                                                                                                    |
-| -------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| GET            | `/api/v1/system`              | Model descriptor, installed units, connection status, queue RTT                                            |
-| POST           | `/api/v1/system/discover`     | Re-detect stacked units                                                                                    |
-| GET            | `/api/v1/zones`               | All zones: state, name, mirror role                                                                        |
-| GET            | `/api/v1/zones/:id`           | One zone                                                                                                   |
-| PATCH          | `/api/v1/zones/:id`           | Partial update `{ volume?, source?, power?, … }`                                                           |
-| PATCH          | `/api/v1/zones/:id/config`    | `{ name?, enabled? }`: rename, or disable an unused zone                                                   |
-| GET            | `/api/v1/sources`             | Shared sources (1–6) with names and enabled flags                                                          |
-| PATCH          | `/api/v1/sources/:id`         | `{ name?, enabled? }`: rename, or hide an unused source from pickers (the API then rejects selecting it)   |
-| GET / POST     | `/api/v1/mirrors`             | List or create mirror groups                                                                               |
-| POST           | `/api/v1/zones/all-off`       | Turn every enabled zone off (mirror followers are not detached)                                            |
-| GET / POST     | `/api/v1/scenes`              | List or create scenes: `{ name, source, zones: [{ zone, volume }], othersOff? }`                           |
-| PATCH / DELETE | `/api/v1/scenes/:id`          | Edit or delete a scene                                                                                     |
-| POST           | `/api/v1/scenes/:id/activate` | Apply a scene; returns `{ applied, skipped }` (followers of active mirrors are skipped and keep following) |
-| PATCH / DELETE | `/api/v1/mirrors/:id`         | Edit, enable/disable, or delete a group                                                                    |
-| GET / PATCH    | `/api/v1/config`              | Home name (`home.name`), polling and queue settings. Changes are broadcast as `config.updated`             |
-| GET            | `/api/v1/serial-ports`        | List candidate ports for the settings UI                                                                   |
-| WS             | `/api/v1/events`              | Sends a snapshot on connect, then events                                                                   |
+| Method         | Path                                        | Purpose                                                                                                    |
+| -------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| GET            | `/api/v1/system`                            | Model descriptor, installed units, connection status, queue RTT                                            |
+| POST           | `/api/v1/system/discover`                   | Re-detect stacked units                                                                                    |
+| GET            | `/api/v1/zones`                             | All zones: state, name, mirror role                                                                        |
+| GET            | `/api/v1/zones/:id`                         | One zone                                                                                                   |
+| PATCH          | `/api/v1/zones/:id`                         | Partial update `{ volume?, source?, power?, … }`                                                           |
+| PATCH          | `/api/v1/zones/:id/config`                  | `{ name?, enabled? }`: rename, or disable an unused zone                                                   |
+| GET            | `/api/v1/sources`                           | Shared sources (1–6) with names and enabled flags                                                          |
+| PATCH          | `/api/v1/sources/:id`                       | `{ name?, enabled? }`: rename, or hide an unused source from pickers (the API then rejects selecting it)   |
+| GET / POST     | `/api/v1/mirrors`                           | List or create mirror groups                                                                               |
+| POST           | `/api/v1/zones/all-off`                     | Turn every enabled zone off (mirror followers are not detached)                                            |
+| POST           | `/api/v1/zones/mute-all`                    | Mute every zone that's on; `/zones/unmute-all` undoes only what it muted. Returns the quiet state          |
+| POST           | `/api/v1/zones/lower-all`                   | `{ steps? }` (default 10): lower every zone that's on; `/zones/restore-volume` undoes it                   |
+| PUT            | `/api/v1/mirrors/:id/followers/:zone/level` | `{ volumeOffset }`: set one follower's offset (sub level) and push it, without revalidating the group      |
+| GET / POST     | `/api/v1/scenes`                            | List or create scenes: `{ name, source, zones: [{ zone, volume }], othersOff? }`                           |
+| PATCH / DELETE | `/api/v1/scenes/:id`                        | Edit or delete a scene                                                                                     |
+| POST           | `/api/v1/scenes/:id/activate`               | Apply a scene; returns `{ applied, skipped }` (followers of active mirrors are skipped and keep following) |
+| PATCH / DELETE | `/api/v1/mirrors/:id`                       | Edit, enable/disable, or delete a group                                                                    |
+| GET / PATCH    | `/api/v1/config`                            | Home name (`home.name`), polling and queue settings. Changes are broadcast as `config.updated`             |
+| GET            | `/api/v1/serial-ports`                      | List candidate ports for the settings UI                                                                   |
+| WS             | `/api/v1/events`                            | Sends a snapshot on connect, then events                                                                   |
 
 **WebSocket events:** `snapshot`, `zone.changed` (diff only), `zone.updated`, `source.updated`, `config.updated`, `scene.updated`, `scene.deleted`, `scene.activated`, `zones.allOff`, `mirror.updated`, `mirror.offsetChanged`, `mirror.followerDetached`, `connection.changed`, `command.failed`.
 Commands go through REST and the WebSocket only pushes. This keeps the API simple to call from curl, scripts and future integrations.
@@ -307,16 +313,16 @@ SQLite would be over-engineered for a few KB of config. The `ConfigStore` interf
 
 ### Designs
 
-The UI ships several designs that share all state, actions and screens; only the layout and styling differ. Each has its own root, so a device can bookmark (or install) the one it suits:
+The UI ships several designs that share all state, actions and screens; only the layout and styling differ. `/` opens the design last used on that device (stored in the browser), Tiles the first time. Each design also has its own root, which a device can bookmark, and visiting it makes it that device's design:
 
 | Root       | Design  | Character                                                                              |
 | ---------- | ------- | -------------------------------------------------------------------------------------- |
-| `/`        | Classic | The original functional-test layout                                                    |
+| `/tiles`   | Tiles   | Default. Room tiles tinted by source, volume gauges, quick −/mute/+ and sub level      |
 | `/studio`  | Studio  | Warm light-first list, source icons and chips, terracotta accent                       |
 | `/console` | Console | Dark mixing desk: channel strips, vertical faders, LED readouts; good for wall tablets |
-| `/tiles`   | Tiles   | Room tiles tinted by source, volume gauges, quick −/mute/+; floating tab bar           |
+| `/classic` | Classic | The original functional-test layout                                                    |
 
-Shared behavior lives in `zoneParts.tsx` (commands, badges, source/volume controls, zone detail sheet). A design adds a zone layout in `designs/` and CSS scoped to `:root[data-design=…]`. The web-app manifest is served per root (`/api/v1/manifest.webmanifest?root=`), so a home-screen install reopens the same design.
+Shared behavior lives in `zoneParts.tsx` (commands, badges, source/volume controls, zone detail sheet). A design adds a zone layout in `designs/` and CSS scoped to `:root[data-design=…]`. The web-app manifest always starts at `/` with scope `/`, so a home-screen install reopens the design last picked on that device, and switching designs stays inside the installed app.
 
 ## 12. Repository layout
 
