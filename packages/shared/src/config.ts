@@ -82,6 +82,20 @@ export const MirrorGroupSchema = z.object({
   followers: z.array(MirrorFollowerSchema).default([]),
 });
 
+/**
+ * A network streamer linked to an amp source, so zones on that source can show
+ * what it is playing. Linked by the device's own id, never by IP address.
+ */
+export const StreamerLinkSchema = z.object({
+  id: z.string().min(1),
+  type: z.literal('cast'),
+  /** Cast device id as announced over mDNS (TXT `id`), lower case without dashes. */
+  deviceId: z.string().regex(/^[0-9a-f]{32}$/, 'a 32-character Cast device id'),
+  /** The device's name when it was linked; shown while it is offline. */
+  name,
+  source: z.number().int().min(1),
+});
+
 export const SceneZoneSchema = z.object({
   zone: z.number().int(),
   /** Preset volume for this zone (zones can differ: stereo vs mono, 4 vs 8 ohm). */
@@ -166,6 +180,7 @@ export const ConfigObjectSchema = z.object({
     .default({}),
   mirrors: z.array(MirrorGroupSchema).default([]),
   scenes: z.array(SceneSchema).default([]),
+  streamers: z.array(StreamerLinkSchema).default([]),
 });
 
 /**
@@ -218,6 +233,7 @@ export type TransportConfig = z.infer<typeof TransportConfigSchema>;
 export type MirrorFollower = z.infer<typeof MirrorFollowerSchema>;
 export type MirrorGroup = z.infer<typeof MirrorGroupSchema>;
 export type Scene = z.infer<typeof SceneSchema>;
+export type StreamerLink = z.infer<typeof StreamerLinkSchema>;
 export type SceneZone = z.infer<typeof SceneZoneSchema>;
 export type PollingConfig = z.infer<typeof PollingConfigSchema>;
 export type QueueConfig = z.infer<typeof QueueConfigSchema>;

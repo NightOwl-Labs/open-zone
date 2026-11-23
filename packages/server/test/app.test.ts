@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { Controller, MemoryConfigStore } from '@open-zone/core';
 import { MonopriceDriver, MonopriceEmulator } from '@open-zone/drivers';
+import { StreamerManager, type CastConnection, type CastClientEvents } from '@open-zone/streamers';
+import { EventEmitter } from 'node:events';
 import { buildApp } from '../src/app.ts';
 import { JsonFileConfigStore } from '../src/config-file.ts';
 
@@ -13,7 +15,7 @@ afterEach(async () => {
   for (const fn of cleanup.splice(0).reverse()) await fn();
 });
 
-async function setup() {
+async function setup(opts: { streamers?: StreamerManager } = {}) {
   const emulator = new MonopriceEmulator({ units: 2, keypadZones: [11, 12] });
   const driver = new MonopriceDriver(emulator.createTransport(), { timeoutMs: 40, retries: 0 });
   const controller = new Controller({
@@ -21,7 +23,11 @@ async function setup() {
     store: new MemoryConfigStore({ queue: { interCommandGapMs: 0 } }),
   });
   await controller.start();
-  const app = await buildApp({ controller, emulator });
+  const app = await buildApp({
+    controller,
+    emulator,
+    ...(opts.streamers && { streamers: opts.streamers }),
+  });
   await app.ready();
   cleanup.push(
     () => controller.stop(),
@@ -183,6 +189,105 @@ describe('REST API', () => {
     await json(app, 'POST', '/zones/restore-volume');
     expect(emulator.getZone(11).volume).toBe(20);
     expect((await json(app, 'POST', '/zones/lower-all', { steps: 0 })).statusCode).toBe(400);
+  });
+
+  it('links a discovered streamer to a source and serves what it plays', async () => {
+    const CCA = '5a683509b32cd1fb5fbabd79315b5ac5';
+    const conn = Object.assign(new EventEmitter<CastClientEvents>(), {
+      connect: async () => {},
+      close: () => {},
+      queryMultizone: async () => [CCA],
+    }) satisfies CastConnection;
+    const streamers = new StreamerManager({
+      discover: async () => [
+        {
+          instance: '5._googlecast._tcp.local',
+          host: 'cca.local',
+          port: 8009,
+          addresses: ['192.168.4.50'],
+          txt: { id: CCA, fn: '5', md: 'Chromecast Audio' },
+        },
+      ],
+      connect: () => conn,
+    });
+    cleanup.push(async () => streamers.stop());
+    const { app, controller } = await setup({ streamers });
+    controller.bus.on('streamers.updated', (e) => streamers.setLinks(e.streamers));
+
+    const found = (await json(app, 'GET', '/streamers/discover')).json();
+    expect(found).toEqual([
+      {
+        type: 'cast',
+        deviceId: CCA,
+        name: '5',
+        model: 'Chromecast Audio',
+        address: '192.168.4.50',
+        isGroup: false,
+      },
+    ]);
+    const created = await json(app, 'POST', '/streamers', {
+      type: 'cast',
+      deviceId: CCA,
+      name: '5',
+      source: 5,
+    });
+    expect(created.statusCode).toBe(201);
+    const id = created.json().id;
+    // Same source or same device again: rejected.
+    expect(
+      (
+        await json(app, 'POST', '/streamers', {
+          type: 'cast',
+          deviceId: 'a'.repeat(32),
+          name: 'X',
+          source: 5,
+        })
+      ).statusCode,
+    ).toBe(400);
+    expect(
+      (await json(app, 'POST', '/streamers', { type: 'cast', deviceId: CCA, name: '5', source: 4 }))
+        .statusCode,
+    ).toBe(400);
+    expect(
+      (await json(app, 'POST', '/streamers', { type: 'cast', deviceId: CCA, name: '5', source: 9 }))
+        .statusCode,
+    ).toBe(400);
+
+    await vi.waitFor(() => expect(streamers.status()[0]?.state).toBe('connected'));
+    conn.emit('nowPlaying', {
+      app: 'YouTube Music',
+      state: 'playing',
+      title: 'Song',
+      artist: 'Band',
+      album: null,
+      artUrl: 'https://art/x.jpg',
+      position: 1,
+      duration: 100,
+      at: Date.now(),
+    });
+    const snap = (await json(app, 'GET', '/snapshot')).json();
+    expect(snap.streamers).toMatchObject({
+      enabled: true,
+      links: [{ id, deviceId: CCA, source: 5 }],
+      status: [{ id, state: 'connected', address: '192.168.4.50' }],
+      nowPlaying: [{ source: 5, title: 'Song', artist: 'Band' }],
+    });
+    expect((await json(app, 'PATCH', `/streamers/${id}`, { source: 3 })).json().source).toBe(3);
+    expect(streamers.nowPlaying()).toMatchObject([{ source: 3, title: 'Song' }]);
+    expect((await json(app, 'DELETE', `/streamers/${id}`)).statusCode).toBe(204);
+    expect(streamers.nowPlaying()).toEqual([]);
+    expect((await json(app, 'DELETE', `/streamers/${id}`)).statusCode).toBe(404);
+  });
+
+  it('works without the streamer integration', async () => {
+    const { app } = await setup();
+    expect((await json(app, 'GET', '/streamers/discover')).json()).toEqual([]);
+    expect((await json(app, 'GET', '/snapshot')).json().streamers).toEqual({
+      links: [],
+      status: [],
+      nowPlaying: [],
+      enabled: false,
+    });
   });
 
   it('sets a subwoofer follower level', async () => {

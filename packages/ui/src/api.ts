@@ -4,6 +4,10 @@ import type {
   Scene,
   MirrorGroup,
   PollingConfig,
+  DiscoveredStreamer,
+  NowPlayingView,
+  StreamerLink,
+  StreamerStatusView,
   AppearanceConfig,
   TileColor,
   QuietView,
@@ -45,7 +49,16 @@ export interface MirrorInput {
   followers?: Array<{ zone: number; volumeOffset: number; sub?: boolean }>;
 }
 
+export interface StreamersSnapshot {
+  links: StreamerLink[];
+  status: StreamerStatusView[];
+  nowPlaying: NowPlayingView[];
+  /** False when the server runs without the streamer integration. */
+  enabled: boolean;
+}
+
 export interface Snapshot {
+  streamers: StreamersSnapshot;
   system: SystemView;
   zones: ZoneView[];
   sources: SourceView[];
@@ -94,6 +107,12 @@ export const api = {
     request<Config>('PATCH', '/config', { appearance }),
   updatePolling: (polling: Partial<PollingConfig>) =>
     request<Config>('PATCH', '/config', { polling }),
+  discoverStreamers: () => request<DiscoveredStreamer[]>('GET', '/streamers/discover'),
+  linkStreamer: (input: { type: 'cast'; deviceId: string; name: string; source: number }) =>
+    request<StreamerLink>('POST', '/streamers', input),
+  updateStreamer: (id: string, input: { source?: number; name?: string }) =>
+    request<StreamerLink>('PATCH', `/streamers/${id}`, input),
+  unlinkStreamer: (id: string) => request<void>('DELETE', `/streamers/${id}`),
   simulateKeypad: (zone: number, body: { patch?: ZonePatch; keypad?: boolean }) =>
     request<void>('POST', '/simulator/keypad', { zone, ...body }),
 };

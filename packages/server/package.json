@@ -12,6 +12,7 @@
     "@open-zone/core": "*",
     "@open-zone/drivers": "*",
     "@open-zone/shared": "*",
+    "@open-zone/streamers": "*",
     "fastify": "^5.12.8",
     "zod": "^4.6.7"
   }

@@ -23,7 +23,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "npm run lint && npm run typecheck && npm run format:check && npm test",
-    "probe": "node tools/oz-probe/src/cli.ts"
+    "probe": "node tools/oz-probe/src/cli.ts",
+    "probe:streamers": "node tools/oz-stream-probe/src/cli.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

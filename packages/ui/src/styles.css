@@ -1167,3 +1167,134 @@ input[type='range']::-moz-range-thumb {
     display: none;
   }
 }
+
+/* ───── now playing ───── */
+
+.np-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.np-line .icon {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+
+.np-line .np-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.np-card {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 10px;
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+
+.np-art {
+  flex: none;
+  width: 72px;
+  height: 72px;
+  border-radius: 10px;
+  object-fit: cover;
+  background: var(--surface);
+}
+
+.np-art.empty {
+  display: grid;
+  place-items: center;
+  color: var(--text-2);
+}
+
+.np-info {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.np-info > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.np-title {
+  font-size: var(--value-size);
+}
+
+/* ───── Settings → Streamers ───── */
+
+.streamer-list {
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.streamer-list > li {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.streamer-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.streamer-name {
+  display: grid;
+  min-width: 0;
+}
+
+.streamer-name > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.streamer-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.streamer-actions .select {
+  flex: 1;
+  min-width: 0;
+}
+
+.dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-2);
+}
+
+.dot.connected {
+  background: var(--ok);
+}
+
+.dot.connecting,
+.dot.searching {
+  background: var(--warn);
+}
+
+.dot.offline {
+  background: var(--bad);
+}

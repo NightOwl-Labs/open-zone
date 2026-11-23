@@ -25,6 +25,7 @@ Status: draft, 2026-11-15.
 | R9d | "All off" turns every enabled zone off at once. There can be any number of scenes, each with a name, one source, a preset volume per zone and an optional "turn other zones off". Activating a scene skips followers of active mirrors and never detaches them.                                                                      | user   |
 | R9e | A follower can be marked as a subwoofer (its zone's preamp output feeds a sub). It follows power, source, mute, DND and volume plus offset (the "sub level"), but keeps its own treble, bass and balance. The sub level can be changed quickly from the Tiles screen.                                                                | user   |
 | R9f | "Mute all" mutes and "Lower all" turns down every zone that's on (mirror followers follow their primary). Each undo touches only the zones it changed and skips zones changed by hand since. Undo for a zone that is off is applied when it next powers on. This state is kept in memory only.                                       | user   |
+| R9g | A network streamer (Cast first) can be linked to any amp source in Settings, by the device's Cast id, never its IP address. Zones on that source show title, artist, album and cover art. When the device plays in a speaker group, the group's details are used. Read-only: no playback control.                                    | user   |
 | R10 | Other multi-zone amp models can be added later. Integrations (MQTT, Home Assistant) and auth can be added later **without changing core decisions**.                                                                                                                                                                                 | user   |
 | R11 | Local network only, no auth in v1. No user roles, ever.                                                                                                                                                                                                                                                                              | user   |
 
@@ -278,6 +279,10 @@ All JSON. Schemas come from the shared zod package and are published as OpenAPI 
 | POST           | `/api/v1/scenes/:id/activate`               | Apply a scene; returns `{ applied, skipped }` (followers of active mirrors are skipped and keep following) |
 | PATCH / DELETE | `/api/v1/mirrors/:id`                       | Edit, enable/disable, or delete a group                                                                    |
 | GET / PATCH    | `/api/v1/config`                            | Home name (`home.name`), polling and queue settings. Changes are broadcast as `config.updated`             |
+| GET            | `/api/v1/streamers`                         | Links, live status and now playing per source                                                              |
+| GET            | `/api/v1/streamers/discover`                | Look for Cast devices on the LAN (~3 s); groups are listed but can't be linked                             |
+| POST           | `/api/v1/streamers`                         | `{ type: 'cast', deviceId, name, source }`: link (one streamer per source, each device once)               |
+| PATCH / DELETE | `/api/v1/streamers/:id`                     | Change the source or unlink                                                                                |
 | GET            | `/api/v1/serial-ports`                      | List candidate ports for the settings UI                                                                   |
 | WS             | `/api/v1/events`                            | Sends a snapshot on connect, then events                                                                   |
 
@@ -326,6 +331,17 @@ The UI ships several designs that share all state, actions and screens; only the
 
 Shared behavior lives in `zoneParts.tsx` (commands, badges, source/volume controls, zone detail sheet). A design adds a zone layout in `designs/` and CSS scoped to `:root[data-design=…]`. The web-app manifest always starts at `/` with scope `/`, so a home-screen install reopens the design last picked on that device, and switching designs stays inside the installed app.
 
+### Streamers (now playing)
+
+`packages/streamers` reads what network streamers are playing; it never controls them. The server starts a `StreamerManager` (turn it off with `--no-streamers` or `OZ_STREAMERS=0`) and keeps it in step with `config.streamers` through the `streamers.updated` event. The amp controller is not involved.
+
+- **Discovery:** mDNS browse of `_googlecast._tcp.local` every 60 s, or every 15 s while a linked device hasn't been found. Devices are matched by their Cast id (TXT `id`), so an address change only means a reconnect.
+- **Cast connection:** TLS to port 8009. The device uses a self-signed certificate, which is accepted on the LAN. The manager follows whichever app is casting, connects to its transport and listens for `MEDIA_STATUS`. A heartbeat detects a lost device, and reconnects back off from 3 s to 60 s.
+- **Speaker groups:** a device playing in a group runs an app with no media channel. The manager then asks each group for its members (`urn:x-cast:com.google.cast.multizone` `GET_STATUS`) and reads track details from the group that contains the device.
+- **Between tracks:** a device reports about 2 s of buffering with no details. The last track is kept for up to 8 s.
+- **Events:** `nowPlaying.changed` (per source) and `streamers.status`. Both go to the WebSocket alongside controller events, and the snapshot includes `streamers`.
+- **Probe:** `npm run probe:streamers` records what each device and app reports (see `stream-probe-report-*`).
+
 ## 12. Repository layout
 
 ```
@@ -334,9 +350,11 @@ packages/
   core/      cache, scheduler, mirror engine, event bus, ControllerService
   drivers/   transports (serial, tcp, loopback), monoprice-10761, simulator
   server/    Fastify app, config store, entrypoint, systemd/udev assets
+  streamers/ mDNS discovery, read-only Cast client, StreamerManager (now playing)
   ui/        React + Vite PWA
 tools/
   oz-probe   Hardware validation CLI: answers the open hardware questions and writes a report (see docs/hardware-validation.md)
+  oz-stream-probe  Finds Cast devices and records what they report (npm run probe:streamers)
 docs/
 ```
 

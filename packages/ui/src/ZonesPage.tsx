@@ -8,6 +8,7 @@ import { Toggle } from './components.tsx';
 import { roleOf, sourceLabel, zoneLabel } from './format.ts';
 import { QuickBar } from './ScenesPage.tsx';
 import { useApp } from './store.ts';
+import { NowPlayingLine, useNowPlaying } from './nowPlaying.tsx';
 import {
   FollowingLine,
   RoleBadge,
@@ -25,6 +26,7 @@ function ClassicCard({ z, onOpen }: { z: ZoneView; onOpen: () => void }) {
   const role = roleOf(z.zone, mirrors);
   const following = isFollowing(role);
   const on = z.state?.power ?? false;
+  const np = useNowPlaying(z);
   return (
     <article
       className={`card zone${on && !following ? ' on' : ''}${following ? ' following' : ''}${
@@ -39,7 +41,17 @@ function ClassicCard({ z, onOpen }: { z: ZoneView; onOpen: () => void }) {
           ) : (
             <>
               <span className="sub">
-                {z.state ? (on ? sourceLabel(sources, z.state.source) : 'Off') : 'Not read yet'}
+                {np ? (
+                  <NowPlayingLine np={np} />
+                ) : z.state ? (
+                  on ? (
+                    sourceLabel(sources, z.state.source)
+                  ) : (
+                    'Off'
+                  )
+                ) : (
+                  'Not read yet'
+                )}
               </span>
               <RoleBadge role={role} zones={zones} />
             </>

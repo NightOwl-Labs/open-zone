@@ -6,6 +6,7 @@ Phone-first control for RS-232 multi-zone amplifiers, running on a Raspberry Pi 
 - **Mirrors:** followers copy a primary zone, with a per-follower volume offset; wall-keypad changes on the primary are followed within about half a second
 - **Subwoofers:** mark a follower as a subwoofer to drive a sub from that zone's preamp output. It keeps its own bass, treble and balance, and its level can be changed from the room's tile
 - **Scenes:** any number of them, each with one source, a preset volume per zone and optional "turn others off"; plus **All off**, **Mute all** and **Lower all** (each with a one-tap undo)
+- **Now playing:** link a Chromecast Audio (or other Cast device) to the amp source it feeds; zones on that source show the song and cover art, including when it plays in a speaker group
 - **Naming:** zones, sources and the home; hide unused zones and sources
 - **Designs:** four (Tiles by default, Studio, Console, Classic), with compact, normal and large spacing; each device remembers its choice
 - **Colors:** color tiles by source or by zone, picking from 16 colors; tiles get deeper as the volume rises
@@ -127,6 +128,7 @@ journalctl -u open-zone -f              # live log (Ctrl+C stops watching)
 - **Settings → Home:** name your home, and choose spacing and a design for this device. The device remembers the design; each also has its own address, e.g. `/console` for a wall tablet.
 - **Settings → Sources and Zones:** name them, and switch off any that aren't connected. The amp can't detect which inputs or zones are in use.
 - **Mirrors:** pick a primary zone and followers. Followers must be zones **without** a wall keypad. Switch on **Subwoofer** for a follower whose preamp output feeds a sub.
+- **Settings → Streamers:** tap **Find streamers**, then link each Cast device to the amp source it's plugged into. Read-only: open-zone never controls the streamer.
 - **Scenes:** create one-tap presets. They appear at the top of the Zones screen next to **All off**, **Mute all** and **Lower all**.
 - On your phone, use **Share → Add to Home Screen** for an app-like icon.
 
