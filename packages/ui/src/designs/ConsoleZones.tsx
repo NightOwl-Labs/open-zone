@@ -3,7 +3,7 @@ import { offsetLabel, roleOf, zoneLabel } from '../format.ts';
 import { useApp } from '../store.ts';
 import type { ZoneItemProps } from '../ZonesPage.tsx';
 import { SourceSelect, change, isFollowing } from '../zoneParts.tsx';
-import { sourceHue } from './visuals.ts';
+import { useZoneColor, zoneColorStyle } from './visuals.ts';
 
 /**
  * Console: one mixing-desk channel strip per zone — power LED, source,
@@ -17,12 +17,13 @@ export function ConsoleStrip({ z, onOpen }: ZoneItemProps) {
   const following = isFollowing(role);
   const s = z.state;
   const on = s?.power ?? false;
+  const color = useZoneColor(z);
   const primary =
     role?.kind === 'follower' ? zones.find((x) => x.zone === role.group.primary) : undefined;
   return (
     <article
       className={`c-strip${on ? ' on' : ''}${following ? ' following' : ''}${s?.mute ? ' muted' : ''}`}
-      style={{ '--hue': sourceHue(s?.source) } as React.CSSProperties}
+      style={zoneColorStyle(color)}
     >
       <div className={`c-tag${role?.group.enabled ? ' mirror' : ''}`}>
         {role?.kind === 'primary' && role.group.enabled ? 'LEAD' : following ? 'FOLLOW' : '\u00a0'}

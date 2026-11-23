@@ -8,6 +8,7 @@ Phone-first control for RS-232 multi-zone amplifiers, running on a Raspberry Pi 
 - **Scenes:** any number of them, each with one source, a preset volume per zone and optional "turn others off"; plus **All off**, **Mute all** and **Lower all** (each with a one-tap undo)
 - **Naming:** zones, sources and the home; hide unused zones and sources
 - **Designs:** four (Tiles by default, Studio, Console, Classic), with compact, normal and large spacing; each device remembers its choice
+- **Colors:** color tiles by source or by zone, picking from 16 colors; tiles get deeper as the volume rises
 - **Recovery:** comes back automatically after a power loss
 - **Simulator:** a built-in amp emulator, so everything can be tried without hardware
 

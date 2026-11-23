@@ -31,6 +31,32 @@ export const TransportConfigSchema = z.discriminatedUnion('type', [
   SimulatorTransportConfigSchema,
 ]);
 
+/** The 16 tile colors. Shades per volume live in the UI (packages/ui/src/designs/palette.ts). */
+export const TILE_COLOR_IDS = [
+  'red',
+  'orange',
+  'amber',
+  'lime',
+  'green',
+  'emerald',
+  'teal',
+  'cyan',
+  'sky',
+  'blue',
+  'indigo',
+  'violet',
+  'purple',
+  'magenta',
+  'rose',
+  'slate',
+] as const;
+export const TileColorSchema = z.enum(TILE_COLOR_IDS);
+
+export const AppearanceConfigSchema = z.object({
+  /** Tint zone tiles by the source they play, or give each zone its own color. */
+  tileColors: z.enum(['source', 'zone']).default('source'),
+});
+
 export const MAX_VOLUME_OFFSET = 38;
 
 export const MirrorFollowerSchema = z.object({
@@ -98,6 +124,7 @@ export const HomeConfigSchema = z.object({
 export const ConfigObjectSchema = z.object({
   schemaVersion: z.literal(CONFIG_SCHEMA_VERSION).default(CONFIG_SCHEMA_VERSION),
   home: HomeConfigSchema.prefault({}),
+  appearance: AppearanceConfigSchema.prefault({}),
   device: z
     .object({
       driver: z.literal('monoprice-10761').default('monoprice-10761'),
@@ -120,6 +147,8 @@ export const ConfigObjectSchema = z.object({
          * the API and cannot join mirrors. The amp always reports 6 zones per unit.
          */
         enabled: z.boolean().default(true),
+        /** Tile color when tiles are colored by zone. */
+        color: TileColorSchema.optional(),
       }),
     )
     .default({}),
@@ -130,6 +159,8 @@ export const ConfigObjectSchema = z.object({
         name: name.optional(),
         /** Disabled sources are hidden from zone source pickers and rejected by the API. */
         enabled: z.boolean().default(true),
+        /** Color for this source (tiles colored by source, and source chips). */
+        color: TileColorSchema.optional(),
       }),
     )
     .default({}),
@@ -181,6 +212,8 @@ export function migrateConfig(input: unknown): unknown {
 export const ConfigSchema = z.preprocess(migrateConfig, ConfigObjectSchema);
 
 export type HomeConfig = z.infer<typeof HomeConfigSchema>;
+export type AppearanceConfig = z.infer<typeof AppearanceConfigSchema>;
+export type TileColor = z.infer<typeof TileColorSchema>;
 export type TransportConfig = z.infer<typeof TransportConfigSchema>;
 export type MirrorFollower = z.infer<typeof MirrorFollowerSchema>;
 export type MirrorGroup = z.infer<typeof MirrorGroupSchema>;

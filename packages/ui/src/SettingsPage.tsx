@@ -4,6 +4,8 @@ import { api } from './api.ts';
 import { Icon, NameInput, StatusPill, Toggle } from './components.tsx';
 import { sourceLabel, zoneLabel } from './format.ts';
 import { DESIGNS, design } from './design.ts';
+import { ColorPicker } from './ColorPicker.tsx';
+import { ownZoneColor, sourceColor } from './designs/visuals.ts';
 import { run, setDensity, toast, useApp, type Density } from './store.ts';
 
 function Connection() {
@@ -326,11 +328,77 @@ function HomeAndDisplay() {
   );
 }
 
+const COLOR_MODES = [
+  { id: 'source', label: 'By source' },
+  { id: 'zone', label: 'By zone' },
+] as const;
+
+/** Tile colors: by source or by zone, and the color of each. Shared by every device. */
+function Colors() {
+  const mode = useApp((s) => s.config?.appearance.tileColors ?? 'source');
+  const sources = useApp((s) => s.sources).filter((x) => x.enabled);
+  const zones = useApp((s) => s.zones).filter((x) => x.enabled);
+  return (
+    <section className="card">
+      <div className="card-head">
+        <h3>Colors</h3>
+      </div>
+      <div className="field">
+        <span>Color zone tiles</span>
+        <div className="segmented" role="radiogroup" aria-label="Color zone tiles">
+          {COLOR_MODES.map((m) => (
+            <button
+              type="button"
+              key={m.id}
+              role="radio"
+              aria-checked={mode === m.id}
+              className={mode === m.id ? 'active' : ''}
+              onClick={() => void run(() => api.updateAppearance({ tileColors: m.id }))}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+        <span className="muted-text small">
+          {mode === 'source'
+            ? 'A tile takes the color of what it is playing.'
+            : 'Each zone keeps its own color, whatever it plays.'}{' '}
+          Tiles get deeper as the volume goes up. Saved for every device.
+        </span>
+      </div>
+      <ul className="color-list">
+        {mode === 'source'
+          ? sources.map((src) => (
+              <li key={src.source}>
+                <ColorPicker
+                  label={sourceLabel(sources, src.source)}
+                  value={sourceColor(sources, src.source)}
+                  isDefault={!src.color}
+                  onChange={(color) => void run(() => api.updateSource(src.source, { color }))}
+                />
+              </li>
+            ))
+          : zones.map((z) => (
+              <li key={z.zone}>
+                <ColorPicker
+                  label={zoneLabel(z)}
+                  value={ownZoneColor(z)}
+                  isDefault={!z.color}
+                  onChange={(color) => void run(() => api.updateZone(z.zone, { color }))}
+                />
+              </li>
+            ))}
+      </ul>
+    </section>
+  );
+}
+
 export function SettingsPage() {
   const simulator = useApp((s) => s.system?.simulator);
   return (
     <>
       <HomeAndDisplay />
+      <Colors />
       <Connection />
       {simulator && <Simulator />}
       <Names />

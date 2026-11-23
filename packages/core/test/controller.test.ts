@@ -118,7 +118,12 @@ describe('Controller: zone commands and naming', () => {
     expect((await ctl.renameZone(11, '  Kitchen ')).name).toBe('Kitchen');
     await ctl.renameSource(2, 'Turntable');
     expect(store.current.zones['11']).toEqual({ name: 'Kitchen', enabled: true });
-    expect(ctl.getSources()[1]).toEqual({ source: 2, name: 'Turntable', enabled: true });
+    expect(ctl.getSources()[1]).toEqual({
+      source: 2,
+      name: 'Turntable',
+      enabled: true,
+      color: null,
+    });
     await ctl.renameZone(11, '');
     expect(store.current.zones['11']).toBeUndefined();
     expect(ofType('zone.updated').map((e) => e.name)).toEqual(['Kitchen', null]);
@@ -374,6 +379,7 @@ describe('Controller: zone enable/disable', () => {
       zone: 15,
       name: 'Garage',
       enabled: false,
+      color: null,
     });
     await expect(ctl.setZone(15, { power: true })).rejects.toThrow(/zone 15 is disabled/);
     expect(ctl.getZones().find((z) => z.zone === 15)?.enabled).toBe(false);
@@ -405,7 +411,7 @@ describe('Controller: source enable/disable', () => {
   it('disables sources, rejects them from the API, but lets mirrors and keypads use them', async () => {
     const { ctl, amp, store, ofType } = await setup();
     const v = await ctl.updateSource(4, { enabled: false });
-    expect(v).toEqual({ source: 4, name: null, enabled: false });
+    expect(v).toEqual({ source: 4, name: null, enabled: false, color: null });
     expect(store.current.sources['4']).toEqual({ enabled: false });
     expect(ofType('source.updated')[0]?.source).toEqual(v);
     await expect(ctl.setZone(11, { source: 4 })).rejects.toThrow(/source 4 is disabled/);
@@ -417,6 +423,22 @@ describe('Controller: source enable/disable', () => {
     await vi.waitFor(() => expect(amp.getZone(12).source).toBe(4));
   });
 
+  it('stores source and zone colors with the name, and clears them', async () => {
+    const { ctl, store, ofType } = await setup();
+    await ctl.updateSource(2, { name: 'Sonos', color: 'teal' });
+    expect(store.current.sources['2']).toEqual({ name: 'Sonos', enabled: true, color: 'teal' });
+    expect((await ctl.updateSource(2, { enabled: false })).color).toBe('teal'); // kept
+    await ctl.updateZone(14, { color: 'rose' });
+    expect(store.current.zones['14']).toEqual({ enabled: true, color: 'rose' });
+    expect(ofType('zone.updated').at(-1)).toMatchObject({ zone: 14, color: 'rose' });
+    expect((await ctl.updateZone(14, { name: 'Den' })).color).toBe('rose');
+    await ctl.updateZone(14, { name: null, color: null });
+    expect(store.current.zones['14']).toBeUndefined(); // nothing left to store
+    const config = await ctl.updateSettings({ appearance: { tileColors: 'zone' } });
+    expect(config.appearance.tileColors).toBe('zone');
+    expect(store.current.appearance).toEqual({ tileColors: 'zone' });
+  });
+
   it('keeps the name when toggling and refuses to disable every source', async () => {
     const { ctl } = await setup();
     await ctl.updateSource(2, { name: 'Sonos' });
@@ -424,11 +446,13 @@ describe('Controller: source enable/disable', () => {
       source: 2,
       name: 'Sonos',
       enabled: false,
+      color: null,
     });
     expect(await ctl.updateSource(2, { enabled: true })).toEqual({
       source: 2,
       name: 'Sonos',
       enabled: true,
+      color: null,
     });
     for (const s of [1, 2, 3, 4, 5]) await ctl.updateSource(s, { enabled: false });
     await expect(ctl.updateSource(6, { enabled: false })).rejects.toThrow(/at least one source/);

@@ -1,4 +1,5 @@
 import type { ConnectionStatus } from './events.ts';
+import type { TileColor } from './config.ts';
 import type { ModelDescriptor, SourceId, UnitId, ZoneId, ZoneState } from './model.ts';
 
 export type MirrorRole =
@@ -11,6 +12,8 @@ export interface ZoneView {
   name: string | null;
   /** False for zones marked unused (no speakers). Hidden from controls. */
   enabled: boolean;
+  /** Chosen tile color (used when tiles are colored by zone); null = default. */
+  color: TileColor | null;
   /** Last known hardware state; null until the zone has been read. */
   state: ZoneState | null;
   /** Epoch ms of the last successful read or acknowledged write. */
@@ -23,6 +26,8 @@ export interface SourceView {
   name: string | null;
   /** False when hidden from source pickers. The amp cannot report which inputs are connected. */
   enabled: boolean;
+  /** Chosen color; null = default for this source number. */
+  color: TileColor | null;
 }
 
 export interface QueueStats {

@@ -3,7 +3,7 @@ import { roleOf, sourceLabel, subsLedBy, zoneLabel } from '../format.ts';
 import { useApp } from '../store.ts';
 import type { ZoneItemProps } from '../ZonesPage.tsx';
 import { SubLevel, change, isFollowing, isSub } from '../zoneParts.tsx';
-import { sourceHue, sourceIcon } from './visuals.ts';
+import { sourceIcon, useZoneColor, zoneColorStyle } from './visuals.ts';
 import { VolumeRing } from './VolumeRing.tsx';
 
 const MAX = 38;
@@ -21,6 +21,7 @@ export function RoomTile({ z, onOpen }: ZoneItemProps) {
   const following = isFollowing(role);
   const s = z.state;
   const on = s?.power ?? false;
+  const color = useZoneColor(z);
   const primary =
     role?.kind === 'follower' ? zones.find((x) => x.zone === role.group.primary) : undefined;
   const step = (d: number) => s && change(z, { volume: Math.max(0, Math.min(MAX, s.volume + d)) });
@@ -37,7 +38,7 @@ export function RoomTile({ z, onOpen }: ZoneItemProps) {
   return (
     <article
       className={`t-tile${on ? ' on' : ''}${following ? ' following' : ''}${sub ? ' sub' : ''}${s?.mute ? ' muted' : ''}${quickSub && !sub ? ' has-sub' : ''}`}
-      style={{ '--hue': sourceHue(s?.source) } as React.CSSProperties}
+      style={zoneColorStyle(color)}
     >
       <button
         type="button"

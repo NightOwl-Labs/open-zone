@@ -3,6 +3,7 @@ import {
   MAX_VOLUME_OFFSET,
   PatchValidationError,
   clampProp,
+  AppearanceConfigSchema,
   PollingConfigSchema,
   QueueConfigSchema,
   isValidZone,
@@ -34,6 +35,8 @@ import {
   type ZoneState,
   type ZoneView,
   type QuietView,
+  type AppearanceConfig,
+  type TileColor,
 } from '@open-zone/shared';
 import { CommandQueue, QueueClearedError, type RunOptions } from './command-queue.ts';
 import type { ConfigStore } from './config-store.ts';
@@ -317,6 +320,7 @@ export class Controller {
       source: i + 1,
       name: this.config.sources[String(i + 1)]?.name ?? null,
       enabled: this.config.sources[String(i + 1)]?.enabled ?? true,
+      color: this.config.sources[String(i + 1)]?.color ?? null,
     }));
   }
 
@@ -325,6 +329,7 @@ export class Controller {
     return {
       zone,
       name: this.config.zones[String(zone)]?.name ?? null,
+      color: this.config.zones[String(zone)]?.color ?? null,
       enabled: this.isZoneEnabled(zone),
       state: this.cache.get(zone) ?? null,
       updatedAt: this.cache.updatedAt(zone),
@@ -390,15 +395,19 @@ export class Controller {
   /** Rename and/or enable/disable a zone. Pass `name: null` to clear the name. */
   async updateZone(
     zone: ZoneId,
-    input: { name?: string | null; enabled?: boolean },
+    input: { name?: string | null; enabled?: boolean; color?: TileColor | null },
   ): Promise<ZoneView> {
     if (!isValidZone(this.model, zone)) throw new NotFoundError(`zone ${zone}`);
     const key = String(zone);
     const current = this.config.zones[key] ?? { enabled: true };
-    const next: { name?: string; enabled: boolean } = { enabled: current.enabled };
+    const next: { name?: string; enabled: boolean; color?: TileColor } = {
+      enabled: current.enabled,
+    };
     const name = input.name === undefined ? current.name : input.name?.trim() || undefined;
     if (name) next.name = name;
     if (input.enabled !== undefined) next.enabled = input.enabled;
+    const color = input.color === undefined ? current.color : (input.color ?? undefined);
+    if (color) next.color = color;
     if (!next.enabled && current.enabled) {
       const role = this.roleOf(zone);
       if (role) {
@@ -408,10 +417,16 @@ export class Controller {
       }
     }
     const zones = { ...this.config.zones };
-    if (next.name || !next.enabled) zones[key] = next;
+    if (next.name || next.color || !next.enabled) zones[key] = next;
     else delete zones[key];
     await this.saveConfig({ ...this.config, zones });
-    this.emit({ type: 'zone.updated', zone, name: next.name ?? null, enabled: next.enabled });
+    this.emit({
+      type: 'zone.updated',
+      zone,
+      name: next.name ?? null,
+      enabled: next.enabled,
+      color: next.color ?? null,
+    });
     return this.zoneView(zone);
   }
 
@@ -427,19 +442,23 @@ export class Controller {
   /** Rename and/or enable/disable a source. Pass `name: null` to clear the name. */
   async updateSource(
     source: SourceId,
-    input: { name?: string | null; enabled?: boolean },
+    input: { name?: string | null; enabled?: boolean; color?: TileColor | null },
   ): Promise<SourceView> {
     if (!Number.isInteger(source) || source < 1 || source > this.model.sourceCount) {
       throw new NotFoundError(`source ${source}`);
     }
     const key = String(source);
     const current = this.config.sources[key] ?? { enabled: true };
-    const next: { name?: string; enabled: boolean } = { enabled: current.enabled };
+    const next: { name?: string; enabled: boolean; color?: TileColor } = {
+      enabled: current.enabled,
+    };
     const name = input.name === undefined ? current.name : input.name?.trim() || undefined;
     if (name) next.name = name;
     if (input.enabled !== undefined) next.enabled = input.enabled;
+    const color = input.color === undefined ? current.color : (input.color ?? undefined);
+    if (color) next.color = color;
     const sources = { ...this.config.sources };
-    if (next.name || !next.enabled) sources[key] = next;
+    if (next.name || next.color || !next.enabled) sources[key] = next;
     else delete sources[key];
     const enabledCount = Array.from(
       { length: this.model.sourceCount },
@@ -462,18 +481,23 @@ export class Controller {
   /** Update home, polling and queue settings. Pass `home.name: null` to clear the name. */
   async updateSettings(input: {
     home?: { name?: string | null };
+    appearance?: Partial<AppearanceConfig>;
     polling?: Partial<PollingConfig>;
     queue?: Partial<QueueConfig>;
   }): Promise<Config> {
     const polling = PollingConfigSchema.parse({ ...this.config.polling, ...input.polling });
     const queue = QueueConfigSchema.parse({ ...this.config.queue, ...input.queue });
+    const appearance = AppearanceConfigSchema.parse({
+      ...this.config.appearance,
+      ...input.appearance,
+    });
     const home = { ...this.config.home };
     if (input.home && 'name' in input.home) {
       const name = input.home.name?.trim();
       if (name) home.name = name;
       else delete home.name;
     }
-    await this.saveConfig({ ...this.config, home, polling, queue });
+    await this.saveConfig({ ...this.config, home, appearance, polling, queue });
     this.scheduler.configure(polling);
     this.queue.setGap(queue.interCommandGapMs);
     const config = this.getConfig();

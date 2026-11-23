@@ -322,6 +322,8 @@ The UI ships several designs that share all state, actions and screens; only the
 | `/console` | Console | Dark mixing desk: channel strips, vertical faders, LED readouts; good for wall tablets |
 | `/classic` | Classic | The original functional-test layout                                                    |
 
+**Colors.** `appearance.tileColors` (config, shared by every device) colors zones by their source or by the zone itself. Sources and zones each take an optional `color`, one of 16 ids (`TILE_COLOR_IDS`); without one they use a default per source number or zone. `packages/ui/src/designs/palette.ts` holds a static table of 6 shades per color, soft to deep, and volume 0–38 picks the shade, so Tiles get deeper as a room gets louder. Every shade keeps white text at a contrast of at least 4.5:1. The other designs use the color's hue for accents.
+
 Shared behavior lives in `zoneParts.tsx` (commands, badges, source/volume controls, zone detail sheet). A design adds a zone layout in `designs/` and CSS scoped to `:root[data-design=…]`. The web-app manifest always starts at `/` with scope `/`, so a home-screen install reopens the design last picked on that device, and switching designs stays inside the installed app.
 
 ## 12. Repository layout

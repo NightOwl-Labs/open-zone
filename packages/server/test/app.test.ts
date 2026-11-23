@@ -77,6 +77,7 @@ describe('REST API', () => {
       source: 3,
       name: 'Vinyl',
       enabled: true,
+      color: null,
     });
     expect((await json(app, 'PUT', '/zones/11/name', { nope: 1 })).statusCode).toBe(400);
   });
@@ -90,10 +91,30 @@ describe('REST API', () => {
     expect((await json(app, 'PATCH', '/zones/14/config', { enabled: false })).statusCode).toBe(409);
   });
 
+  it('sets zone and source colors and the tile color mode', async () => {
+    const { app } = await setup();
+    expect((await json(app, 'PATCH', '/zones/11/config', { color: 'teal' })).json()).toMatchObject({
+      zone: 11,
+      color: 'teal',
+      name: null,
+    });
+    expect((await json(app, 'PATCH', '/sources/2', { color: 'amber' })).json()).toMatchObject({
+      source: 2,
+      color: 'amber',
+    });
+    expect((await json(app, 'PATCH', '/zones/11/config', { color: 'plaid' })).statusCode).toBe(400);
+    expect((await json(app, 'PATCH', '/zones/11/config', { color: null })).json().color).toBe(null);
+    const cfg = await json(app, 'PATCH', '/config', { appearance: { tileColors: 'zone' } });
+    expect(cfg.json().appearance).toEqual({ tileColors: 'zone' });
+    expect(
+      (await json(app, 'PATCH', '/config', { appearance: { tileColors: 'rainbow' } })).statusCode,
+    ).toBe(400);
+  });
+
   it('enables and disables sources', async () => {
     const { app } = await setup();
     const res = await json(app, 'PATCH', '/sources/5', { enabled: false, name: 'Aux' });
-    expect(res.json()).toEqual({ source: 5, name: 'Aux', enabled: false });
+    expect(res.json()).toEqual({ source: 5, name: 'Aux', enabled: false, color: null });
     expect((await json(app, 'PATCH', '/zones/11', { source: 5 })).statusCode).toBe(400);
     expect((await json(app, 'PATCH', '/sources/5', { bogus: 1 })).statusCode).toBe(400);
   });

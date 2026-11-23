@@ -14,7 +14,9 @@ import { listSerialPorts, type MonopriceEmulator } from '@open-zone/drivers';
 import {
   MAX_VOLUME_OFFSET,
   PatchValidationError,
+  AppearanceConfigSchema,
   PollingConfigSchema,
+  TileColorSchema,
   QueueConfigSchema,
   validatePatch,
   type ControllerEvent,
@@ -34,11 +36,13 @@ const zoneParam = z.object({ id: z.coerce.number().int() });
 const idParam = z.object({ id: z.string().min(1) });
 const nameBody = z.object({ name: z.string().max(40).nullable() });
 const configBody = z
-  .object({ name: z.string().max(40).nullable().optional(), enabled: z.boolean().optional() })
+  .object({
+    name: z.string().max(40).nullable().optional(),
+    enabled: z.boolean().optional(),
+    color: TileColorSchema.nullable().optional(),
+  })
   .strict();
-const sourceBody = z
-  .object({ name: z.string().max(40).nullable().optional(), enabled: z.boolean().optional() })
-  .strict();
+const sourceBody = configBody;
 const followerInput = z.union([
   z.number().int(),
   z.object({
@@ -63,6 +67,7 @@ const configPatch = z.object({
     .object({ name: z.string().max(40).nullable().optional() })
     .strict()
     .optional(),
+  appearance: AppearanceConfigSchema.partial().strict().optional(),
   polling: PollingConfigSchema.partial().optional(),
   queue: QueueConfigSchema.partial().optional(),
 });
@@ -211,6 +216,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
         const body = configPatch.parse(req.body);
         return controller.updateSettings({
           ...(body.home && { home: body.home }),
+          ...(body.appearance && { appearance: body.appearance }),
           ...(body.polling && { polling: body.polling }),
           ...(body.queue && { queue: body.queue }),
         });
