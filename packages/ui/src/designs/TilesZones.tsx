@@ -1,14 +1,18 @@
 import { Icon } from '../components.tsx';
-import { roleOf, sourceLabel, zoneLabel } from '../format.ts';
+import { roleOf, sourceLabel, subsLedBy, zoneLabel } from '../format.ts';
 import { useApp } from '../store.ts';
 import type { ZoneItemProps } from '../ZonesPage.tsx';
-import { change, isFollowing } from '../zoneParts.tsx';
+import { SubLevel, change, isFollowing, isSub } from '../zoneParts.tsx';
 import { sourceHue, sourceIcon } from './visuals.ts';
 import { VolumeRing } from './VolumeRing.tsx';
 
 const MAX = 38;
 
-/** Tiles: rooms as colored tiles with a volume ring and quick −/mute/+ controls. */
+/**
+ * Tiles: rooms as colored tiles with a volume ring and quick −/mute/+ controls.
+ * A room that leads a subwoofer zone gets a second row for the sub level; the
+ * sub's own tile shows the same row.
+ */
 export function RoomTile({ z, onOpen }: ZoneItemProps) {
   const sources = useApp((s) => s.sources);
   const mirrors = useApp((s) => s.mirrors);
@@ -20,9 +24,19 @@ export function RoomTile({ z, onOpen }: ZoneItemProps) {
   const primary =
     role?.kind === 'follower' ? zones.find((x) => x.zone === role.group.primary) : undefined;
   const step = (d: number) => s && change(z, { volume: Math.max(0, Math.min(MAX, s.volume + d)) });
+  const sub = isSub(role) ? role : null;
+  // Quick sub level: on the room tile (first sub it leads) or on the sub's own tile.
+  const led = subsLedBy(z.zone, mirrors)[0];
+  const quickSub = !on
+    ? null
+    : sub
+      ? { groupId: sub.group.id, zone: z.zone, value: sub.volumeOffset }
+      : led
+        ? { groupId: led.group.id, zone: led.follower.zone, value: led.follower.volumeOffset }
+        : null;
   return (
     <article
-      className={`t-tile${on ? ' on' : ''}${following ? ' following' : ''}${s?.mute ? ' muted' : ''}`}
+      className={`t-tile${on ? ' on' : ''}${following ? ' following' : ''}${sub ? ' sub' : ''}${s?.mute ? ' muted' : ''}${quickSub && !sub ? ' has-sub' : ''}`}
       style={{ '--hue': sourceHue(s?.source) } as React.CSSProperties}
     >
       <button
@@ -33,7 +47,11 @@ export function RoomTile({ z, onOpen }: ZoneItemProps) {
       >
         <span className="t-name">{zoneLabel(z)}</span>
         <span className="t-sub">
-          {following ? (
+          {sub ? (
+            <>
+              <Icon name="link" /> Sub · {primary ? zoneLabel(primary) : 'Following'}
+            </>
+          ) : following ? (
             <>
               <Icon name="link" /> {primary ? zoneLabel(primary) : 'Following'}
             </>
@@ -81,6 +99,14 @@ export function RoomTile({ z, onOpen }: ZoneItemProps) {
             <Icon name="plus" />
           </button>
         </div>
+      )}
+      {quickSub && (
+        <SubLevel
+          groupId={quickSub.groupId}
+          zone={quickSub.zone}
+          value={quickSub.value}
+          className={`t-sub-level${sub ? ' own' : ''}`}
+        />
       )}
     </article>
   );

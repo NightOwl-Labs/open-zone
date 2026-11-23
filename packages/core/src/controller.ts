@@ -1,5 +1,6 @@
 import {
   DriverTimeoutError,
+  MAX_VOLUME_OFFSET,
   PatchValidationError,
   clampProp,
   PollingConfigSchema,
@@ -16,6 +17,7 @@ import {
   type ConnectionStatus,
   type DetachReason,
   type ControllerEvent,
+  type MirrorFollower,
   type MirrorGroup,
   type ActivationResult,
   type Scene,
@@ -31,6 +33,7 @@ import {
   type ZonePatch,
   type ZoneState,
   type ZoneView,
+  type QuietView,
 } from '@open-zone/shared';
 import { CommandQueue, QueueClearedError, type RunOptions } from './command-queue.ts';
 import type { ConfigStore } from './config-store.ts';
@@ -70,7 +73,7 @@ export interface MirrorInput {
   name?: string | undefined;
   enabled?: boolean | undefined;
   primary: ZoneId;
-  followers: Array<ZoneId | { zone: ZoneId; volumeOffset?: number }>;
+  followers: Array<ZoneId | { zone: ZoneId; volumeOffset?: number; sub?: boolean }>;
 }
 
 export interface SceneInput {
@@ -118,6 +121,11 @@ export class Controller {
   private status: ConnectionStatus = 'disconnected';
   private lastError: string | null = null;
   private clients = 0;
+  /** Mute all / Lower all bookkeeping, so the undo touches only what they changed. In memory only. */
+  private quietMuted = new Set<ZoneId>();
+  private quietLowered = new Map<ZoneId, { from: number; to: number }>();
+  /** Undo writes for zones that were off (the amp ignores them); applied when the zone powers on. */
+  private pendingRestore = new Map<ZoneId, ZonePatch>();
   private started = false;
   private consecutiveTimeouts = 0;
   private reconnectDelay: number;
@@ -287,6 +295,7 @@ export class Controller {
         mirrorActive: this.activeGroups().length > 0,
         interactiveClients: this.clients,
       },
+      quiet: this.getQuiet(),
     };
   }
 
@@ -323,7 +332,12 @@ export class Controller {
         ? null
         : role.role === 'primary'
           ? { groupId: role.group.id, role: 'primary' }
-          : { groupId: role.group.id, role: 'follower', volumeOffset: role.follower.volumeOffset },
+          : {
+              groupId: role.group.id,
+              role: 'follower',
+              volumeOffset: role.follower.volumeOffset,
+              ...(role.follower.sub && { sub: true }),
+            },
     };
   }
 
@@ -467,6 +481,114 @@ export class Controller {
     return config;
   }
 
+  // ───────────────────────────── mute all / lower all ─────────────────────────────
+
+  /** What Mute all / Lower all changed that still applies (stale entries are pruned). */
+  getQuiet(): QuietView {
+    for (const z of this.quietMuted) {
+      const st = this.cache.get(z);
+      if (!st?.mute && !this.pendingRestore.has(z)) this.quietMuted.delete(z);
+    }
+    for (const [z, v] of this.quietLowered) {
+      if (this.cache.get(z)?.volume !== v.to) this.quietLowered.delete(z);
+    }
+    return {
+      muted: [...this.quietMuted],
+      lowered: [...this.quietLowered].map(([zone, v]) => ({ zone, ...v })),
+    };
+  }
+
+  /** Mute every playing zone. Mirror followers mute with their primary. */
+  async muteAll(): Promise<QuietView> {
+    const writes = this.quietTargets()
+      .filter((z) => !this.cache.get(z)!.mute)
+      .map((z): [ZoneId, ZonePatch] => [z, { mute: true }]);
+    return this.quietWrite('mute-all', writes, (z) => this.quietMuted.add(z));
+  }
+
+  /** Unmute the zones Mute all muted (zones unmuted since are left alone). */
+  async unmuteAll(): Promise<QuietView> {
+    const writes: Array<[ZoneId, ZonePatch]> = [];
+    for (const z of this.quietMuted) {
+      const st = this.cache.get(z);
+      if (!st?.mute || !this.isZoneEnabled(z) || isFollowing(this.roleOf(z))) continue;
+      if (st.power) writes.push([z, { mute: false }]);
+      else this.pendingRestore.set(z, { ...this.pendingRestore.get(z), mute: false });
+    }
+    this.quietMuted.clear();
+    return this.quietWrite('unmute-all', writes);
+  }
+
+  /** Lower every playing zone's volume by `steps`. Followers keep their offset. */
+  async lowerAll(steps: number): Promise<QuietView> {
+    if (!Number.isInteger(steps) || steps < 1 || steps > (this.model.properties.volume.max ?? 0)) {
+      throw new PatchValidationError([
+        'steps must be a positive whole number within the volume range',
+      ]);
+    }
+    const lowered = new Map<ZoneId, { from: number; to: number }>();
+    const writes: Array<[ZoneId, ZonePatch]> = [];
+    for (const z of this.quietTargets()) {
+      const volume = this.cache.get(z)!.volume;
+      if (volume === 0) continue;
+      const to = clampProp(this.model, 'volume', volume - steps);
+      // Lowering twice still restores to the volume before the first time.
+      const prev = this.quietLowered.get(z);
+      lowered.set(z, { from: prev && prev.to === volume ? prev.from : volume, to });
+      writes.push([z, { volume: to }]);
+    }
+    return this.quietWrite('lower-all', writes, (z) => this.quietLowered.set(z, lowered.get(z)!));
+  }
+
+  /** Put back the volumes Lower all changed, unless a zone's volume was changed since. */
+  async restoreVolume(): Promise<QuietView> {
+    const writes: Array<[ZoneId, ZonePatch]> = [];
+    for (const [z, { from, to }] of this.quietLowered) {
+      const st = this.cache.get(z);
+      if (st?.volume !== to || !this.isZoneEnabled(z) || isFollowing(this.roleOf(z))) continue;
+      if (st.power) writes.push([z, { volume: from }]);
+      else this.pendingRestore.set(z, { ...this.pendingRestore.get(z), volume: from });
+    }
+    this.quietLowered.clear();
+    return this.quietWrite('restore-volume', writes);
+  }
+
+  /** Enabled zones that are on and not driven by a mirror primary. */
+  private quietTargets(): ZoneId[] {
+    return this.getZones()
+      .filter((z) => z.enabled && z.state?.power && !isFollowing(this.roleOf(z.zone)))
+      .map((z) => z.zone);
+  }
+
+  private async quietWrite(
+    action: 'mute-all' | 'unmute-all' | 'lower-all' | 'restore-volume',
+    writes: Array<[ZoneId, ZonePatch]>,
+    onWritten?: (zone: ZoneId) => void,
+  ): Promise<QuietView> {
+    const zones = this.getZones()
+      .filter((z) => z.enabled)
+      .map((z) => z.zone);
+    const applied: ZoneId[] = [];
+    // Like All off: hold follower audits while primaries change.
+    await this.whileSyncing(zones, async () => {
+      for (const [zone, patch] of writes) {
+        await this.writeZone(zone, patch, 'api');
+        onWritten?.(zone);
+        applied.push(zone);
+      }
+    });
+    const quiet = this.getQuiet();
+    this.emit({ type: 'quiet.changed', action, quiet, applied });
+    return quiet;
+  }
+
+  private async applyPendingRestore(zone: ZoneId): Promise<void> {
+    const patch = this.pendingRestore.get(zone);
+    if (!patch) return;
+    this.pendingRestore.delete(zone);
+    await this.writeZone(zone, patch, 'api');
+  }
+
   // ───────────────────────────── mirrors ─────────────────────────────
 
   listMirrors(): MirrorGroup[] {
@@ -484,9 +606,7 @@ export class Controller {
       id: this.newId(),
       enabled: input.enabled ?? true,
       primary: input.primary,
-      followers: input.followers.map((c) =>
-        typeof c === 'number' ? { zone: c, volumeOffset: 0 } : { volumeOffset: 0, ...c },
-      ),
+      followers: input.followers.map((c) => toFollower(c)),
     };
     if (input.name?.trim()) group.name = input.name.trim();
     await this.validateGroup(group);
@@ -499,7 +619,7 @@ export class Controller {
 
   async updateMirror(id: string, input: Partial<MirrorInput>): Promise<MirrorGroup> {
     const current = this.getMirror(id);
-    const offsets = new Map(current.followers.map((c) => [c.zone, c.volumeOffset]));
+    const previous = new Map(current.followers.map((c) => [c.zone, c]));
     const next: MirrorGroup = {
       ...current,
       ...(input.enabled !== undefined && { enabled: input.enabled }),
@@ -511,9 +631,7 @@ export class Controller {
     }
     if (input.followers) {
       next.followers = input.followers.map((c) =>
-        typeof c === 'number'
-          ? { zone: c, volumeOffset: offsets.get(c) ?? 0 }
-          : { zone: c.zone, volumeOffset: c.volumeOffset ?? offsets.get(c.zone) ?? 0 },
+        toFollower(c, previous.get(typeof c === 'number' ? c : c.zone)),
       );
     }
     await this.validateGroup(next);
@@ -525,6 +643,30 @@ export class Controller {
     if (next.enabled) await this.syncGroup(id);
     this.scheduler.update();
     return this.getMirror(id);
+  }
+
+  /**
+   * Set one follower's volume offset (for a subwoofer follower: its level
+   * relative to the primary) and push the new volume straight away. Cheaper
+   * than updateMirror: no group revalidation, so it suits rapid taps.
+   */
+  async setFollowerLevel(
+    groupId: string,
+    zone: ZoneId,
+    volumeOffset: number,
+  ): Promise<MirrorGroup> {
+    const group = this.getMirror(groupId);
+    if (!group.followers.some((c) => c.zone === zone)) {
+      throw new NotFoundError(`zone ${zone} in mirror group ${groupId}`);
+    }
+    if (!Number.isInteger(volumeOffset) || Math.abs(volumeOffset) > MAX_VOLUME_OFFSET) {
+      throw new PatchValidationError([
+        `volumeOffset must be an integer from -${MAX_VOLUME_OFFSET} to ${MAX_VOLUME_OFFSET}`,
+      ]);
+    }
+    await this.saveFollowerOffset(groupId, zone, volumeOffset);
+    if (group.enabled) await this.fanOut(groupId);
+    return this.getMirror(groupId);
   }
 
   async deleteMirror(id: string): Promise<void> {
@@ -591,7 +733,7 @@ export class Controller {
     const primary = this.cache.get(group.primary);
     if (!primary) return;
     await Promise.all(
-      group.followers.map(({ zone, volumeOffset }) =>
+      group.followers.map(({ zone, volumeOffset, sub }) =>
         this.whileSyncing([zone], async () => {
           if (options.reReadFollowers || !this.cache.get(zone)) {
             await this.refreshZone(zone, 'high');
@@ -599,7 +741,12 @@ export class Controller {
           const follower = this.cache.get(zone);
           const latestPrimary = this.cache.get(group.primary) ?? primary;
           if (!follower) return;
-          const expected = expectedFollowerSettings(this.model, latestPrimary, volumeOffset);
+          const expected = expectedFollowerSettings(
+            this.model,
+            latestPrimary,
+            volumeOffset,
+            sub ? follower : undefined,
+          );
           const patch = diffSettings(settingsOf(follower), expected);
           if (Object.keys(patch).length) await this.writeZone(zone, patch, 'mirror');
         }),
@@ -616,15 +763,28 @@ export class Controller {
     const follower = this.cache.get(zone);
     if (!primary || !follower) return;
     const ignore = [...this.cache.pendingProps(zone), ...this.cache.pendingProps(group.primary)];
-    const verdict = evaluateFollower(this.model, primary, follower, entry.volumeOffset, ignore);
+    const verdict = evaluateFollower(
+      this.model,
+      primary,
+      follower,
+      entry.volumeOffset,
+      ignore,
+      entry.sub ?? false,
+    );
     if (verdict.kind === 'offset') {
-      await this.setFollowerOffset(group.id, zone, verdict.volumeOffset);
+      await this.saveFollowerOffset(group.id, zone, verdict.volumeOffset);
+      this.emit({
+        type: 'mirror.offsetChanged',
+        groupId: group.id,
+        zone,
+        volumeOffset: verdict.volumeOffset,
+      });
     } else if (verdict.kind === 'detach') {
       await this.detachFollower(group.id, zone, verdict.reason, verdict.property);
     }
   }
 
-  private async setFollowerOffset(
+  private async saveFollowerOffset(
     groupId: string,
     zone: ZoneId,
     volumeOffset: number,
@@ -639,7 +799,6 @@ export class Controller {
     );
     await this.saveConfig({ ...this.config, mirrors });
     this.log.info(`mirror ${groupId}: zone ${zone} volume offset now ${volumeOffset}`);
-    this.emit({ type: 'mirror.offsetChanged', groupId, zone, volumeOffset });
     this.emit({ type: 'mirror.updated', group: this.getMirror(groupId) });
   }
 
@@ -876,6 +1035,7 @@ export class Controller {
     changes: ObservedChanges,
     origin: ChangeOrigin,
   ): Promise<void> {
+    if (changes.power === true) await this.applyPendingRestore(zone);
     const role = this.roleOf(zone);
     if (!role?.group.enabled) return;
     if (role.role === 'primary') {
@@ -983,6 +1143,24 @@ export class Controller {
   private emit(event: ControllerEvent): void {
     this.bus.emit(event);
   }
+}
+
+/** Normalize a follower from API input, keeping earlier offset and sub settings by default. */
+function toFollower(
+  input: ZoneId | { zone: ZoneId; volumeOffset?: number; sub?: boolean },
+  previous?: MirrorFollower,
+): MirrorFollower {
+  const c = typeof input === 'number' ? { zone: input } : input;
+  const sub = c.sub ?? previous?.sub ?? false;
+  return {
+    zone: c.zone,
+    volumeOffset: c.volumeOffset ?? previous?.volumeOffset ?? 0,
+    ...(sub && { sub: true }),
+  };
+}
+
+function isFollowing(role: ReturnType<Controller['roleOf']>): boolean {
+  return role?.role === 'follower' && role.group.enabled;
 }
 
 function stripUndefined<T extends object>(o: T): Partial<T> {

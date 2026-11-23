@@ -177,13 +177,15 @@ function handle(msg: ServerMessage): void {
         ...s,
         sources: s.sources.map((x) => (x.source === msg.source.source ? msg.source : x)),
       }));
-    case 'mirror.updated':
+    case 'mirror.updated': {
+      const group = withPendingLevels(msg.group);
       return update((s) => ({
         ...s,
-        mirrors: s.mirrors.some((g) => g.id === msg.group.id)
-          ? s.mirrors.map((g) => (g.id === msg.group.id ? msg.group : g))
-          : [...s.mirrors, msg.group],
+        mirrors: s.mirrors.some((g) => g.id === group.id)
+          ? s.mirrors.map((g) => (g.id === group.id ? group : g))
+          : [...s.mirrors, group],
       }));
+    }
     case 'mirror.deleted':
       return update((s) => ({ ...s, mirrors: s.mirrors.filter((g) => g.id !== msg.groupId) }));
     case 'mirror.offsetChanged': {
@@ -215,6 +217,24 @@ function handle(msg: ServerMessage): void {
     }
     case 'zones.allOff':
       return toast('All zones off');
+    case 'quiet.changed': {
+      update((s) => (s.system ? { ...s, system: { ...s.system, quiet: msg.quiet } } : s));
+      const n = msg.applied.length;
+      const zonesText = `${n} ${n === 1 ? 'zone' : 'zones'}`;
+      return toast(
+        msg.action === 'mute-all'
+          ? n
+            ? `Muted ${zonesText}`
+            : 'Nothing playing to mute'
+          : msg.action === 'unmute-all'
+            ? `Unmuted ${zonesText}`
+            : msg.action === 'lower-all'
+              ? n
+                ? `Lowered ${zonesText}`
+                : 'Nothing playing to lower'
+              : `Volume restored on ${zonesText}`,
+      );
+    }
     case 'config.updated':
       return update((s) => ({ ...s, config: msg.config }));
     case 'connection.changed':
@@ -280,5 +300,69 @@ export async function run<T>(fn: () => Promise<T>, success?: string): Promise<T 
   } catch (err) {
     toast(errorText(err), 'error');
     return undefined;
+  }
+}
+
+// ───────────────────────────── follower (sub) level ─────────────────────────────
+
+/**
+ * Level changes still being sent, by "groupId:zone". Rapid taps update the
+ * wanted value; one request is in flight per follower and the latest value is
+ * sent when it returns, so the amp always ends on the last tap.
+ */
+const pendingLevels = new Map<string, { wanted: number; sending: boolean }>();
+
+function setLocalLevel(groupId: string, zone: number, volumeOffset: number): void {
+  update((s) => ({
+    ...s,
+    mirrors: s.mirrors.map((g) =>
+      g.id !== groupId
+        ? g
+        : {
+            ...g,
+            followers: g.followers.map((c) => (c.zone === zone ? { ...c, volumeOffset } : c)),
+          },
+    ),
+  }));
+}
+
+/** Keep optimistic levels on screen while echoes of earlier taps arrive. */
+function withPendingLevels(group: MirrorGroup): MirrorGroup {
+  if (pendingLevels.size === 0) return group;
+  return {
+    ...group,
+    followers: group.followers.map((c) => {
+      const p = pendingLevels.get(`${group.id}:${c.zone}`);
+      return p ? { ...c, volumeOffset: p.wanted } : c;
+    }),
+  };
+}
+
+export async function setFollowerLevel(
+  groupId: string,
+  zone: number,
+  volumeOffset: number,
+): Promise<void> {
+  const key = `${groupId}:${zone}`;
+  setLocalLevel(groupId, zone, volumeOffset);
+  const pending = pendingLevels.get(key);
+  if (pending) {
+    pending.wanted = volumeOffset;
+    if (pending.sending) return;
+  }
+  const entry = pending ?? { wanted: volumeOffset, sending: false };
+  pendingLevels.set(key, entry);
+  entry.sending = true;
+  try {
+    let sent: number;
+    do {
+      sent = entry.wanted;
+      await api.setFollowerLevel(groupId, zone, sent);
+    } while (entry.wanted !== sent);
+    pendingLevels.delete(key);
+  } catch (err) {
+    pendingLevels.delete(key);
+    toast(errorText(err), 'error');
+    await refresh();
   }
 }

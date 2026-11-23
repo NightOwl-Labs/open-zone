@@ -3,7 +3,7 @@ import type { ModelDescriptor, SourceId, UnitId, ZoneId, ZoneState } from './mod
 
 export type MirrorRole =
   | { groupId: string; role: 'primary' }
-  | { groupId: string; role: 'follower'; volumeOffset: number };
+  | { groupId: string; role: 'follower'; volumeOffset: number; sub?: boolean };
 
 /** A zone as presented to API consumers. */
 export interface ZoneView {
@@ -35,12 +35,25 @@ export interface QueueStats {
   maxMs: number | null;
 }
 
+/**
+ * Temporary "quiet" changes made by Mute all / Lower all, so they can be undone.
+ * Only zones the controller changed are listed; followers of a mirror follow
+ * their primary and are never listed themselves.
+ */
+export interface QuietView {
+  /** Zones muted by Mute all (they were unmuted before). */
+  muted: ZoneId[];
+  /** Zones lowered by Lower all: volume before (`from`) and after (`to`). */
+  lowered: Array<{ zone: ZoneId; from: number; to: number }>;
+}
+
 export interface SystemView {
   model: ModelDescriptor;
   connection: { status: ConnectionStatus; error: string | null; transport: string };
   units: UnitId[];
   queue: QueueStats;
   polling: { mirrorActive: boolean; interactiveClients: number };
+  quiet: QuietView;
   /** True when running against the built-in emulator instead of hardware. */
   simulator?: boolean;
 }

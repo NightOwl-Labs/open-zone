@@ -317,8 +317,9 @@ function HomeAndDisplay() {
           ))}
         </ul>
         <span className="muted-text small">
-          Each design has its own address (e.g. /console), so a wall tablet can bookmark one and
-          your phone another. Everything works the same in all of them.
+          This device remembers the design you pick and opens it next time. Each design also has its
+          own address (e.g. /console) that a wall tablet can bookmark. Everything works the same in
+          all of them.
         </span>
       </div>
     </section>

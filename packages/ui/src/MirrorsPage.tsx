@@ -2,12 +2,13 @@ import { useState } from 'react';
 import type { MirrorGroup, ZoneView } from '@open-zone/shared';
 import { api } from './api.ts';
 import { Icon, Sheet, Toggle } from './components.tsx';
-import { groupLabel, offsetLabel, zoneLabel } from './format.ts';
+import { groupLabel, levelLabel, offsetLabel, zoneLabel } from './format.ts';
 import { errorText, run, useApp } from './store.ts';
 
 interface Follower {
   zone: number;
   volumeOffset: number;
+  sub: boolean;
 }
 
 const MAX_OFFSET = 38;
@@ -16,10 +17,12 @@ function OffsetStepper({
   value,
   onChange,
   label,
+  sub,
 }: {
   value: number;
   onChange: (v: number) => void;
   label: string;
+  sub: boolean;
 }) {
   const set = (v: number) => onChange(Math.max(-MAX_OFFSET, Math.min(MAX_OFFSET, v)));
   return (
@@ -33,7 +36,11 @@ function OffsetStepper({
         −
       </button>
       <output aria-live="polite">
-        {value === 0 ? 'Same volume' : `${offsetLabel(value)} volume`}
+        {sub
+          ? `Sub level ${levelLabel(value)}`
+          : value === 0
+            ? 'Same volume'
+            : `${offsetLabel(value)} volume`}
       </output>
       <button type="button" className="icon-btn" aria-label="Louder" onClick={() => set(value + 1)}>
         +
@@ -48,10 +55,14 @@ function MirrorEditor({ group, onClose }: { group: MirrorGroup | null; onClose: 
   const [name, setName] = useState(group?.name ?? '');
   const [primary, setPrimary] = useState<number | null>(group?.primary ?? null);
   const [followers, setFollowers] = useState<Follower[]>(
-    group?.followers.map((c) => ({ zone: c.zone, volumeOffset: c.volumeOffset })) ?? [],
+    group?.followers.map((c) => ({
+      zone: c.zone,
+      volumeOffset: c.volumeOffset,
+      sub: c.sub ?? false,
+    })) ?? [],
   );
-  const setOffset = (zone: number, volumeOffset: number) =>
-    setFollowers((cs) => cs.map((c) => (c.zone === zone ? { ...c, volumeOffset } : c)));
+  const setFollower = (zone: number, patch: Partial<Follower>) =>
+    setFollowers((cs) => cs.map((c) => (c.zone === zone ? { ...c, ...patch } : c)));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -128,6 +139,11 @@ function MirrorEditor({ group, onClose }: { group: MirrorGroup | null; onClose: 
           the mirror. Use the offset to play a zone louder or quieter than the primary (e.g. −4 for
           a bedroom).
         </p>
+        <p className="muted-text small">
+          Subwoofer: for a zone whose preamp output feeds a sub. It follows power, source and
+          volume, but keeps its own bass, treble and balance, and its offset becomes a sub level you
+          can change from the room&apos;s tile.
+        </p>
         <ul className="check-list">
           {usable.map((z) => {
             const reason = followerReason(z);
@@ -144,7 +160,7 @@ function MirrorEditor({ group, onClose }: { group: MirrorGroup | null; onClose: 
                       const on = e.currentTarget.checked;
                       setFollowers((cs) =>
                         on
-                          ? [...cs, { zone: z.zone, volumeOffset: 0 }]
+                          ? [...cs, { zone: z.zone, volumeOffset: 0, sub: false }]
                           : cs.filter((c) => c.zone !== z.zone),
                       );
                     }}
@@ -153,11 +169,22 @@ function MirrorEditor({ group, onClose }: { group: MirrorGroup | null; onClose: 
                   {reason && <span className="tag">{reason}</span>}
                 </label>
                 {follower && (
-                  <OffsetStepper
-                    label={`${zoneLabel(z)} volume offset`}
-                    value={follower.volumeOffset}
-                    onChange={(v) => setOffset(z.zone, v)}
-                  />
+                  <>
+                    <OffsetStepper
+                      label={`${zoneLabel(z)} volume offset`}
+                      value={follower.volumeOffset}
+                      sub={follower.sub}
+                      onChange={(v) => setFollower(z.zone, { volumeOffset: v })}
+                    />
+                    <div className="follower-sub">
+                      <span>Subwoofer</span>
+                      <Toggle
+                        label={`${zoneLabel(z)} is a subwoofer`}
+                        checked={follower.sub}
+                        onChange={(sub) => setFollower(z.zone, { sub })}
+                      />
+                    </div>
+                  </>
                 )}
               </li>
             );
@@ -205,7 +232,11 @@ function GroupCard({ g, onEdit }: { g: MirrorGroup; onEdit: () => void }) {
         {g.followers.map((c) => (
           <li key={c.zone} className="chip">
             {name(c.zone)}
-            {c.volumeOffset ? <b> {offsetLabel(c.volumeOffset)}</b> : null}
+            {c.sub ? (
+              <b> · sub {levelLabel(c.volumeOffset)}</b>
+            ) : c.volumeOffset ? (
+              <b> {offsetLabel(c.volumeOffset)}</b>
+            ) : null}
           </li>
         ))}
       </ul>
@@ -238,7 +269,8 @@ export function MirrorsPage() {
     <>
       <p className="intro">
         A mirror makes zones follow a primary: power, source, volume, tone and mute. Change the
-        primary here or on its keypad and the others follow within about half a second.
+        primary here or on its keypad and the others follow within about half a second. A follower
+        marked as a subwoofer keeps its own tone and gets a quick level control.
       </p>
       {mirrors.map((g) => (
         <GroupCard key={g.id} g={g} onEdit={() => setEditing(g)} />

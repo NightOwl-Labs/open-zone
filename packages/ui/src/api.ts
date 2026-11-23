@@ -4,6 +4,7 @@ import type {
   Scene,
   MirrorGroup,
   PollingConfig,
+  QuietView,
   SourceView,
   SystemView,
   ZonePatch,
@@ -39,7 +40,7 @@ export interface MirrorInput {
   name?: string;
   enabled?: boolean;
   primary?: number;
-  followers?: Array<{ zone: number; volumeOffset: number }>;
+  followers?: Array<{ zone: number; volumeOffset: number; sub?: boolean }>;
 }
 
 export interface Snapshot {
@@ -70,7 +71,13 @@ export const api = {
   updateMirror: (id: string, input: MirrorInput) =>
     request<MirrorGroup>('PATCH', `/mirrors/${id}`, input),
   deleteMirror: (id: string) => request<void>('DELETE', `/mirrors/${id}`),
+  setFollowerLevel: (id: string, zone: number, volumeOffset: number) =>
+    request<MirrorGroup>('PUT', `/mirrors/${id}/followers/${zone}/level`, { volumeOffset }),
   allOff: () => request<ActivationResult>('POST', '/zones/all-off'),
+  muteAll: () => request<QuietView>('POST', '/zones/mute-all'),
+  unmuteAll: () => request<QuietView>('POST', '/zones/unmute-all'),
+  lowerAll: (steps: number) => request<QuietView>('POST', '/zones/lower-all', { steps }),
+  restoreVolume: () => request<QuietView>('POST', '/zones/restore-volume'),
   createScene: (input: SceneInput) => request<Scene>('POST', '/scenes', input),
   updateScene: (id: string, input: Partial<SceneInput>) =>
     request<Scene>('PATCH', `/scenes/${id}`, input),

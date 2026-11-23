@@ -40,6 +40,12 @@ export const MirrorFollowerSchema = z.object({
    * learned when the follower's volume is changed directly.
    */
   volumeOffset: z.number().int().min(-MAX_VOLUME_OFFSET).max(MAX_VOLUME_OFFSET).default(0),
+  /**
+   * Subwoofer follower: the zone's preamp output feeds a sub. It follows power,
+   * source, mute, DND and volume (plus offset, i.e. the sub level), but keeps
+   * its own treble, bass and balance so it can be tuned for the sub.
+   */
+  sub: z.boolean().optional(),
 });
 
 export const MirrorGroupSchema = z.object({

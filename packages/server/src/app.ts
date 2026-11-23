@@ -44,8 +44,13 @@ const followerInput = z.union([
   z.object({
     zone: z.number().int(),
     volumeOffset: z.number().int().min(-MAX_VOLUME_OFFSET).max(MAX_VOLUME_OFFSET).optional(),
+    sub: z.boolean().optional(),
   }),
 ]);
+const followerParam = z.object({ id: z.string().min(1), zone: z.coerce.number().int() });
+const followerLevelBody = z
+  .object({ volumeOffset: z.number().int().min(-MAX_VOLUME_OFFSET).max(MAX_VOLUME_OFFSET) })
+  .strict();
 const mirrorCreate = z.object({
   name: z.string().max(40).optional(),
   enabled: z.boolean().optional(),
@@ -61,6 +66,7 @@ const configPatch = z.object({
   polling: PollingConfigSchema.partial().optional(),
   queue: QueueConfigSchema.partial().optional(),
 });
+const lowerAllBody = z.object({ steps: z.number().int().min(1).max(38).default(10) }).strict();
 const sceneZone = z.object({ zone: z.number().int(), volume: z.number().int() });
 const sceneCreate = z.object({
   name: z.string().max(40),
@@ -148,6 +154,13 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
       );
 
       api.post('/zones/all-off', async () => controller.allOff());
+      // Temporary quiet: undo only touches the zones these changed.
+      api.post('/zones/mute-all', async () => controller.muteAll());
+      api.post('/zones/unmute-all', async () => controller.unmuteAll());
+      api.post('/zones/lower-all', async (req) =>
+        controller.lowerAll(lowerAllBody.parse(req.body ?? {}).steps),
+      );
+      api.post('/zones/restore-volume', async () => controller.restoreVolume());
 
       api.get('/scenes', async () => controller.listScenes());
       api.get('/scenes/:id', async (req) => controller.getScene(idParam.parse(req.params).id));
@@ -182,6 +195,12 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
       api.patch('/mirrors/:id', async (req) =>
         controller.updateMirror(idParam.parse(req.params).id, mirrorUpdate.parse(req.body)),
       );
+      // Quick level change for one follower (e.g. a subwoofer), no group revalidation.
+      api.put('/mirrors/:id/followers/:zone/level', async (req) => {
+        const { id, zone } = followerParam.parse(req.params);
+        const { volumeOffset } = followerLevelBody.parse(req.body);
+        return controller.setFollowerLevel(id, zone, volumeOffset);
+      });
       api.delete('/mirrors/:id', async (req, reply) => {
         await controller.deleteMirror(idParam.parse(req.params).id);
         return reply.status(204).send();
@@ -197,19 +216,17 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
         });
       });
 
-      // Web app manifest per design root, so a home-screen install reopens that design.
-      api.get('/manifest.webmanifest', async (req, reply) => {
-        const roots = ['/', '/studio/', '/console/', '/tiles/'];
-        const q = req.query as { root?: string };
-        const root = q.root && roots.includes(q.root) ? q.root : '/';
+      // Web app manifest. The app always starts at "/", which opens the design
+      // last used on that device, so switching design in an installed app sticks.
+      api.get('/manifest.webmanifest', async (_req, reply) => {
         const home = controller.getConfig().home.name;
         const label = home ?? 'open-zone';
         return reply.type('application/manifest+json').send({
           name: label,
           short_name: label.slice(0, 12),
           description: 'Multi-zone audio control',
-          start_url: root,
-          scope: root,
+          start_url: '/',
+          scope: '/',
           display: 'standalone',
           background_color: '#0f1115',
           theme_color: '#0f1115',

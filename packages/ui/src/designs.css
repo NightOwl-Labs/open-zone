@@ -756,6 +756,71 @@
   height: 20px;
 }
 
+/* ───── Tiles: subwoofer level row ───── */
+
+.t-tile.has-sub {
+  min-height: calc(max(165px, calc(var(--tap) * 4.1)) + var(--tap) - 8px);
+}
+
+.t-tile.has-sub .t-open {
+  padding-bottom: calc(var(--pad-x) + var(--tap) * 2 - 8px);
+}
+
+.t-tile.sub {
+  color: var(--text);
+}
+
+.t-sub-level {
+  position: absolute;
+  left: calc(var(--pad-x) - 4px);
+  right: calc(var(--pad-x) - 4px);
+  bottom: calc(var(--pad-x) - 6px + var(--tap) - 2px);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: calc(var(--tap) - 14px);
+  border-radius: 10px;
+  background: rgb(0 0 0 / 0.16);
+}
+
+.t-sub-level.own {
+  bottom: calc(var(--pad-x) - 6px);
+  height: calc(var(--tap) - 6px);
+  background: var(--surface-2);
+}
+
+.t-sub-level button {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  height: 100%;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: inherit;
+}
+
+.t-sub-level output {
+  flex: 1.2;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.t-sub-level .sub-level-label {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.t-sub-level .icon {
+  width: 16px;
+  height: 16px;
+}
+
 /* ───── Tiles: zone detail sheet matches the tile ───── */
 
 .sheet-tiles {

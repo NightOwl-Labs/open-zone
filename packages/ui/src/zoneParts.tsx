@@ -1,9 +1,15 @@
-import type { SourceView, ZonePatch, ZoneView } from '@open-zone/shared';
+import {
+  MAX_VOLUME_OFFSET,
+  type SourceView,
+  type ZonePatch,
+  type ZoneView,
+} from '@open-zone/shared';
 import { api } from './api.ts';
 import { Icon, NameInput, Sheet, Slider, Toggle } from './components.tsx';
 import {
   balanceLabel,
   groupLabel,
+  levelLabel,
   offsetLabel,
   roleOf,
   sourceLabel,
@@ -11,7 +17,7 @@ import {
   zoneLabel,
   type Role,
 } from './format.ts';
-import { run, setZone, useApp } from './store.ts';
+import { run, setFollowerLevel, setZone, useApp } from './store.ts';
 
 /*
  * Behavior shared by every design: zone commands, mirror badges, source and
@@ -27,15 +33,65 @@ export function isFollowing(role: Role): role is Extract<NonNullable<Role>, { ki
   return role?.kind === 'follower' && role.group.enabled;
 }
 
+/** A subwoofer follower: follows its primary but has its own level and tone. */
+export function isSub(role: Role): role is Extract<NonNullable<Role>, { kind: 'follower' }> {
+  return isFollowing(role) && role.sub;
+}
+
 export function FollowingLine({ role, zones }: { role: Role; zones: ZoneView[] }) {
   if (!isFollowing(role)) return null;
   const primary = zones.find((z) => z.zone === role.group.primary);
+  const name = primary ? zoneLabel(primary) : `Zone ${role.group.primary}`;
   return (
     <span className="badge follower">
       <Icon name="link" />
-      Following {primary ? zoneLabel(primary) : `Zone ${role.group.primary}`}
-      {role.volumeOffset ? ` · volume ${offsetLabel(role.volumeOffset)}` : ''}
+      {role.sub ? (
+        <>
+          Subwoofer for {name} · level {levelLabel(role.volumeOffset)}
+        </>
+      ) : (
+        <>
+          Following {name}
+          {role.volumeOffset ? ` · volume ${offsetLabel(role.volumeOffset)}` : ''}
+        </>
+      )}
     </span>
+  );
+}
+
+/**
+ * − level + for a subwoofer follower. The level is the sub zone's volume
+ * relative to its primary, so the sub keeps tracking the room's volume.
+ */
+export function SubLevel({
+  groupId,
+  zone,
+  value,
+  label = 'Sub',
+  className = '',
+}: {
+  groupId: string;
+  zone: number;
+  value: number;
+  label?: string;
+  className?: string;
+}) {
+  const set = (v: number) => {
+    const next = Math.max(-MAX_VOLUME_OFFSET, Math.min(MAX_VOLUME_OFFSET, v));
+    if (next !== value) void setFollowerLevel(groupId, zone, next);
+  };
+  return (
+    <div className={`sub-level ${className}`} role="group" aria-label={`${label} level`}>
+      <button type="button" aria-label={`${label} quieter`} onClick={() => set(value - 1)}>
+        <Icon name="minus" />
+      </button>
+      <output aria-live="polite">
+        <span className="sub-level-label">{label}</span> {levelLabel(value)}
+      </output>
+      <button type="button" aria-label={`${label} louder`} onClick={() => set(value + 1)}>
+        <Icon name="plus" />
+      </button>
+    </div>
   );
 }
 
@@ -112,6 +168,17 @@ export function MirrorNote({ z }: { z: ZoneView }) {
   const mirrors = useApp((s) => s.mirrors);
   const zones = useApp((s) => s.zones);
   const role = roleOf(z.zone, mirrors);
+  if (isSub(role)) {
+    return (
+      <p className="note">
+        <FollowingLine role={role} zones={zones} />
+        <br />
+        This zone feeds a subwoofer. It follows its primary&apos;s power, source and volume; set its
+        level and tone here. The level is relative to the primary, so the sub keeps up when the room
+        gets louder or quieter.
+      </p>
+    );
+  }
   if (isFollowing(role)) {
     return (
       <p className="note">
@@ -129,8 +196,8 @@ export function MirrorNote({ z }: { z: ZoneView }) {
   ) : null;
 }
 
-/** Treble, bass, balance and do-not-disturb. */
-export function ToneControls({ z }: { z: ZoneView }) {
+/** Treble, bass, balance and (unless `dnd` is false) do-not-disturb. */
+export function ToneControls({ z, dnd = true }: { z: ZoneView; dnd?: boolean }) {
   const s = z.state;
   if (!s) return null;
   return (
@@ -168,10 +235,62 @@ export function ToneControls({ z }: { z: ZoneView }) {
           onCommit={(v) => change(z, { balance: v })}
         />
       </div>
-      <div className="field-row">
-        <span>Do not disturb</span>
-        <Toggle label="Do not disturb" checked={s.dnd} onChange={(v) => change(z, { dnd: v })} />
-      </div>
+      {dnd && (
+        <div className="field-row">
+          <span>Do not disturb</span>
+          <Toggle label="Do not disturb" checked={s.dnd} onChange={(v) => change(z, { dnd: v })} />
+        </div>
+      )}
+    </>
+  );
+}
+
+/**
+ * Subwoofer controls for a detail sheet. On a primary: a level row per sub it
+ * leads. On a sub follower: its level plus its own treble, bass and balance.
+ */
+export function SubControls({ z }: { z: ZoneView }) {
+  const mirrors = useApp((s) => s.mirrors);
+  const zones = useApp((s) => s.zones);
+  const role = roleOf(z.zone, mirrors);
+  if (isSub(role)) {
+    return (
+      <>
+        <div className="field">
+          <span>Sub level</span>
+          <SubLevel
+            groupId={role.group.id}
+            zone={z.zone}
+            value={role.volumeOffset}
+            className="sheet-sub-level"
+          />
+        </div>
+        {z.state?.power ? (
+          <ToneControls z={z} dnd={false} />
+        ) : (
+          <p className="muted-text">Tone controls appear when the primary zone is on.</p>
+        )}
+      </>
+    );
+  }
+  if (role?.kind !== 'primary' || !role.group.enabled) return null;
+  const subs = role.group.followers.filter((c) => c.sub);
+  return (
+    <>
+      {subs.map((c) => {
+        const sz = zones.find((x) => x.zone === c.zone);
+        return (
+          <div className="field" key={c.zone}>
+            <span>{subs.length > 1 && sz ? `Sub level · ${zoneLabel(sz)}` : 'Sub level'}</span>
+            <SubLevel
+              groupId={role.group.id}
+              zone={c.zone}
+              value={c.volumeOffset}
+              className="sheet-sub-level"
+            />
+          </div>
+        );
+      })}
     </>
   );
 }
@@ -249,6 +368,7 @@ export function ZoneDetail({ zone, onClose }: ZoneDetailProps) {
                   <span>Volume</span>
                   <VolumeRow z={z} />
                 </div>
+                <SubControls z={z} />
                 <ToneControls z={z} />
               </>
             ) : (
@@ -258,6 +378,7 @@ export function ZoneDetail({ zone, onClose }: ZoneDetailProps) {
           </>
         )
       )}
+      {following && <SubControls z={z} />}
       <ZoneNameField z={z} />
       <ZoneFacts z={z} />
     </Sheet>

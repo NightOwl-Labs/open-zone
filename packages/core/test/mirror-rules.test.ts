@@ -30,6 +30,16 @@ describe('expectedFollowerSettings', () => {
     expect(expectedFollowerSettings(model, zone(11, { volume: 2 }), -5).volume).toBe(0);
     expect(expectedFollowerSettings(model, zone(11), 0)).not.toHaveProperty('keypad');
   });
+  it("keeps a sub follower's own treble, bass and balance", () => {
+    const own = zone(16, { treble: 0, bass: 12, balance: 10, source: 6, volume: 3 });
+    expect(expectedFollowerSettings(model, zone(11, { bass: 4 }), 3, own)).toMatchObject({
+      treble: 0,
+      bass: 12,
+      balance: 10,
+      source: 2,
+      volume: 23,
+    });
+  });
 });
 
 describe('evaluateFollower', () => {
@@ -61,6 +71,22 @@ describe('evaluateFollower', () => {
   it('ignores properties with writes in flight', () => {
     expect(evaluateFollower(model, primary, zone(12, { source: 4 }), 0, ['source'])).toEqual({
       kind: 'in-sync',
+    });
+  });
+  it('lets a sub follower differ in tone but not in anything else', () => {
+    const tuned = zone(16, { treble: 0, bass: 13, balance: 12 });
+    expect(evaluateFollower(model, primary, tuned, 0, [], true)).toEqual({ kind: 'in-sync' });
+    expect(evaluateFollower(model, primary, { ...tuned, volume: 23 }, 0, [], true)).toEqual({
+      kind: 'offset',
+      volumeOffset: 3,
+    });
+    expect(evaluateFollower(model, primary, { ...tuned, dnd: true }, 0, [], true)).toMatchObject({
+      kind: 'detach',
+      property: 'dnd',
+    });
+    expect(evaluateFollower(model, primary, tuned, 0)).toMatchObject({
+      kind: 'detach',
+      property: 'treble',
     });
   });
   it('only compares power while both zones are off', () => {

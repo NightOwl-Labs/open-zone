@@ -19,16 +19,30 @@ import {
   unitOf,
 } from '@open-zone/shared';
 
-/** What a follower zone should be set to, given its primary and learned volume offset. */
+/** Settings a subwoofer follower keeps for itself instead of copying the primary. */
+export const SUB_OWN_PROPS = [
+  'treble',
+  'bass',
+  'balance',
+] as const satisfies readonly SettableProp[];
+
+/**
+ * What a follower zone should be set to, given its primary and volume offset.
+ * For a subwoofer follower pass its current settings as `subOwn`: its treble,
+ * bass and balance are kept rather than copied from the primary.
+ */
 export function expectedFollowerSettings(
   model: ModelDescriptor,
   primary: ZoneSettings,
   volumeOffset: number,
+  subOwn?: ZoneSettings,
 ): ZoneSettings {
-  return {
+  const expected = {
     ...settingsOf(primary as ZoneState),
     volume: clampProp(model, 'volume', primary.volume + volumeOffset),
   };
+  if (subOwn) for (const p of SUB_OWN_PROPS) expected[p] = subOwn[p];
+  return expected;
 }
 
 export type FollowerVerdict =
@@ -42,6 +56,7 @@ export type FollowerVerdict =
  *   - a keypad shows up             → detach
  *   - only volume differs           → learn a new volume offset
  *   - anything else differs         → detach
+ * A subwoofer follower (`sub`) may differ in treble, bass and balance freely.
  * Properties with writes still in flight are ignored. While both primary and
  * follower are powered off only power is compared — amps may ignore or not
  * report other settings on an idle zone.
@@ -52,9 +67,15 @@ export function evaluateFollower(
   follower: ZoneState,
   volumeOffset: number,
   ignore: readonly SettableProp[] = [],
+  sub = false,
 ): FollowerVerdict {
   if (follower.keypad) return { kind: 'detach', reason: 'keypad-detected' };
-  const expected = expectedFollowerSettings(model, primary, volumeOffset);
+  const expected = expectedFollowerSettings(
+    model,
+    primary,
+    volumeOffset,
+    sub ? follower : undefined,
+  );
   if (!expected.power && !follower.power) return { kind: 'in-sync' };
   const diff = diffSettings(settingsOf(follower), expected);
   const props = (Object.keys(diff) as SettableProp[]).filter((p) => !ignore.includes(p));
