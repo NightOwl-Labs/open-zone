@@ -423,6 +423,41 @@ describe('Controller: source enable/disable', () => {
     await vi.waitFor(() => expect(amp.getZone(12).source).toBe(4));
   });
 
+  it('links streamers to sources: one per source, each device once', async () => {
+    const { ctl, store, ofType } = await setup();
+    const link = await ctl.linkStreamer({
+      type: 'cast',
+      deviceId: '5A683509-B32C-D1FB-5FBA-BD79315B5AC5', // dashed form is normalized
+      name: '5',
+      source: 5,
+    });
+    expect(link).toEqual({
+      id: 'g1',
+      type: 'cast',
+      deviceId: '5a683509b32cd1fb5fbabd79315b5ac5',
+      name: '5',
+      source: 5,
+    });
+    expect(store.current.streamers).toEqual([link]);
+    expect(ofType('streamers.updated').at(-1)?.streamers).toEqual([link]);
+    await expect(
+      ctl.linkStreamer({ type: 'cast', deviceId: 'f'.repeat(32), name: 'Other', source: 5 }),
+    ).rejects.toThrow(/source 5 is already linked to 5/);
+    await expect(
+      ctl.linkStreamer({ type: 'cast', deviceId: link.deviceId, name: '5', source: 4 }),
+    ).rejects.toThrow(/already linked to source 5/);
+    await expect(
+      ctl.linkStreamer({ type: 'cast', deviceId: 'nope', name: 'x', source: 1 }),
+    ).rejects.toThrow();
+    expect((await ctl.updateStreamer('g1', { source: 2 })).source).toBe(2);
+    await expect(ctl.updateStreamer('g1', { source: 7 })).rejects.toThrow(
+      /source 7 does not exist/,
+    );
+    await ctl.unlinkStreamer('g1');
+    expect(ctl.listStreamers()).toEqual([]);
+    await expect(ctl.unlinkStreamer('g1')).rejects.toBeInstanceOf(NotFoundError);
+  });
+
   it('stores source and zone colors with the name, and clears them', async () => {
     const { ctl, store, ofType } = await setup();
     await ctl.updateSource(2, { name: 'Sonos', color: 'teal' });

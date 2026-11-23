@@ -15,6 +15,7 @@ import {
 } from '../zoneParts.tsx';
 import { SourceChips } from './SourceChips.tsx';
 import { api } from '../api.ts';
+import { NowPlayingCard, useNowPlaying } from '../nowPlaying.tsx';
 import { ColorPicker } from '../ColorPicker.tsx';
 import { run } from '../store.ts';
 import { ownZoneColor, sourceColor, sourceIcon, useZoneColor, zoneColorStyle } from './visuals.ts';
@@ -37,6 +38,7 @@ function TileSheet({ z, onClose }: { z: ZoneView; onClose: () => void }) {
   const mirrors = useApp((s) => s.mirrors);
   const zones = useApp((s) => s.zones);
   const color = useZoneColor(z);
+  const np = useNowPlaying(z);
   const role = roleOf(zone, mirrors);
   const following = isFollowing(role);
   const s = z.state;
@@ -101,6 +103,7 @@ function TileSheet({ z, onClose }: { z: ZoneView; onClose: () => void }) {
       {role?.kind === 'primary' || following ? <MirrorNote z={z} /> : null}
       {s && on && !following && (
         <>
+          {np && <NowPlayingCard np={np} />}
           <div className="field">
             <span>Source</span>
             <SourceChips z={z} sources={sources} />

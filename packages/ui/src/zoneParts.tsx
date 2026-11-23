@@ -18,6 +18,7 @@ import {
   type Role,
 } from './format.ts';
 import { run, setFollowerLevel, setZone, useApp } from './store.ts';
+import { NowPlayingCard, useNowPlaying } from './nowPlaying.tsx';
 
 /*
  * Behavior shared by every design: zone commands, mirror badges, source and
@@ -341,9 +342,14 @@ export interface ZoneDetailProps {
 
 export function ZoneDetail({ zone, onClose }: ZoneDetailProps) {
   const z = useApp((s) => s.zones).find((x) => x.zone === zone);
+  return z ? <ZoneSheet z={z} onClose={onClose} /> : null;
+}
+
+function ZoneSheet({ z, onClose }: { z: ZoneView; onClose: () => void }) {
+  const zone = z.zone;
   const sources = useApp((s) => s.sources);
   const mirrors = useApp((s) => s.mirrors);
-  if (!z) return null;
+  const np = useNowPlaying(z);
   const following = isFollowing(roleOf(zone, mirrors));
   const s = z.state;
   return (
@@ -360,6 +366,7 @@ export function ZoneDetail({ zone, onClose }: ZoneDetailProps) {
             </div>
             {s.power ? (
               <>
+                {np && <NowPlayingCard np={np} />}
                 <div className="field">
                   <span>Source</span>
                   <SourceSelect z={z} sources={sources} />

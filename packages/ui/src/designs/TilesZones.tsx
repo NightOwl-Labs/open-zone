@@ -3,6 +3,7 @@ import { roleOf, sourceLabel, subsLedBy, zoneLabel } from '../format.ts';
 import { useApp } from '../store.ts';
 import type { ZoneItemProps } from '../ZonesPage.tsx';
 import { SubLevel, change, isFollowing, isSub } from '../zoneParts.tsx';
+import { NowPlayingLine, artBackground, useNowPlaying } from '../nowPlaying.tsx';
 import { sourceIcon, useZoneColor, zoneColorStyle } from './visuals.ts';
 import { VolumeRing } from './VolumeRing.tsx';
 
@@ -22,6 +23,9 @@ export function RoomTile({ z, onOpen }: ZoneItemProps) {
   const s = z.state;
   const on = s?.power ?? false;
   const color = useZoneColor(z);
+  // A linked streamer on this zone's source: song on the tile, cover art behind it.
+  const np = useNowPlaying(z);
+  const art = !following && np ? artBackground(np.artUrl) : null;
   const primary =
     role?.kind === 'follower' ? zones.find((x) => x.zone === role.group.primary) : undefined;
   const step = (d: number) => s && change(z, { volume: Math.max(0, Math.min(MAX, s.volume + d)) });
@@ -37,8 +41,8 @@ export function RoomTile({ z, onOpen }: ZoneItemProps) {
         : null;
   return (
     <article
-      className={`t-tile${on ? ' on' : ''}${following ? ' following' : ''}${sub ? ' sub' : ''}${s?.mute ? ' muted' : ''}${quickSub && !sub ? ' has-sub' : ''}`}
-      style={zoneColorStyle(color)}
+      className={`t-tile${on ? ' on' : ''}${following ? ' following' : ''}${sub ? ' sub' : ''}${s?.mute ? ' muted' : ''}${quickSub && !sub ? ' has-sub' : ''}${art ? ' has-art' : ''}`}
+      style={{ ...zoneColorStyle(color), ...(art && { '--art': art }) }}
     >
       <button
         type="button"
@@ -58,6 +62,8 @@ export function RoomTile({ z, onOpen }: ZoneItemProps) {
             </>
           ) : !s ? (
             'Not read yet'
+          ) : on && np ? (
+            <NowPlayingLine np={np} className="t-np" />
           ) : on ? (
             <>
               <Icon name={sourceIcon(sources, s.source)} /> {sourceLabel(sources, s.source)}

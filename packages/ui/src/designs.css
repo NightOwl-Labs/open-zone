@@ -760,6 +760,32 @@
   height: 20px;
 }
 
+/* ───── Tiles: now playing (cover art behind the tile) ───── */
+
+/* The art sits under a wash of the tile's own color, strongest at the bottom
+   where the text is, so white text stays readable on any artwork. */
+.t-tile.on.has-art {
+  background:
+    linear-gradient(
+      to top,
+      color-mix(in srgb, var(--tile) 94%, transparent) 0%,
+      color-mix(in srgb, var(--tile) 78%, transparent) 45%,
+      color-mix(in srgb, var(--tile) 35%, transparent) 100%
+    ),
+    var(--art) center / cover no-repeat,
+    var(--tile);
+}
+
+.t-np {
+  max-width: 100%;
+}
+
+.t-np .np-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ───── Tiles: subwoofer level row ───── */
 
 .t-tile.has-sub {

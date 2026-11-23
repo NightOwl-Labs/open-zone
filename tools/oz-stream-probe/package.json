@@ -1,0 +1,12 @@
+{
+  "name": "@open-zone/oz-stream-probe",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "oz-stream-probe": "./src/cli.ts"
+  },
+  "dependencies": {
+    "@open-zone/streamers": "*"
+  }
+}

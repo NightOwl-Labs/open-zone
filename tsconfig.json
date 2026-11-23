@@ -21,10 +21,12 @@
     "packages/core/src",
     "packages/drivers/src",
     "packages/server/src",
+    "packages/streamers/src",
     "packages/shared/test",
     "packages/core/test",
     "packages/drivers/test",
     "packages/server/test",
+    "packages/streamers/test",
     "tools/*/src",
     "vitest.config.ts"
   ]

@@ -4,6 +4,7 @@ import { useApp } from '../store.ts';
 import type { ZoneItemProps } from '../ZonesPage.tsx';
 import { FollowingLine, RoleBadge, VolumeRow, change, isFollowing } from '../zoneParts.tsx';
 import { SourceChips } from './SourceChips.tsx';
+import { NowPlayingLine, useNowPlaying } from '../nowPlaying.tsx';
 import { sourceIcon, useZoneColor, zoneColorStyle } from './visuals.ts';
 
 /** Studio: a calm list. Each zone leads with a source-colored icon; sources are chips. */
@@ -16,6 +17,7 @@ export function StudioRow({ z, onOpen }: ZoneItemProps) {
   const on = z.state?.power ?? false;
   const source = z.state?.source;
   const color = useZoneColor(z);
+  const np = useNowPlaying(z);
   return (
     <article
       className={`s-row${on ? ' on' : ''}${following ? ' following' : ''}${
@@ -34,11 +36,15 @@ export function StudioRow({ z, onOpen }: ZoneItemProps) {
           ) : (
             <>
               <span className="sub">
-                {!z.state
-                  ? 'Not read yet'
-                  : on
-                    ? `${sourceLabel(sources, source!)} · ${z.state.mute ? 'muted' : `vol ${z.state.volume}`}`
-                    : 'Off'}
+                {!z.state ? (
+                  'Not read yet'
+                ) : on && np ? (
+                  <NowPlayingLine np={np} />
+                ) : on ? (
+                  `${sourceLabel(sources, source!)} · ${z.state.mute ? 'muted' : `vol ${z.state.volume}`}`
+                ) : (
+                  'Off'
+                )}
               </span>
               <RoleBadge role={role} zones={zones} />
             </>

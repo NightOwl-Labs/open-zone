@@ -5,6 +5,7 @@ import { Icon, NameInput, StatusPill, Toggle } from './components.tsx';
 import { sourceLabel, zoneLabel } from './format.ts';
 import { DESIGNS, design } from './design.ts';
 import { ColorPicker } from './ColorPicker.tsx';
+import { StreamersSettings } from './StreamersSettings.tsx';
 import { ownZoneColor, sourceColor } from './designs/visuals.ts';
 import { run, setDensity, toast, useApp, type Density } from './store.ts';
 
@@ -402,6 +403,7 @@ export function SettingsPage() {
       <Connection />
       {simulator && <Simulator />}
       <Names />
+      <StreamersSettings />
       <Polling />
     </>
   );

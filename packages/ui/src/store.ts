@@ -3,13 +3,15 @@ import type {
   Config,
   ControllerEvent,
   MirrorGroup,
+  NowPlayingView,
   Scene,
+  StreamerEvent,
   SourceView,
   SystemView,
   ZonePatch,
   ZoneView,
 } from '@open-zone/shared';
-import { ApiError, api, type Snapshot } from './api.ts';
+import { ApiError, api, type Snapshot, type StreamersSnapshot } from './api.ts';
 import { zoneLabel } from './format.ts';
 
 export interface Toast {
@@ -31,6 +33,9 @@ export interface AppState {
   scenes: Scene[];
   config: Config | null;
   toasts: Toast[];
+  streamers: StreamersSnapshot;
+  /** What each linked streamer is playing, by amp source. */
+  nowPlaying: Record<number, NowPlayingView>;
 }
 
 const DENSITY_KEY = 'open-zone.density';
@@ -59,6 +64,8 @@ let state: AppState = {
   scenes: [],
   config: null,
   toasts: [],
+  streamers: { links: [], status: [], nowPlaying: [], enabled: false },
+  nowPlaying: {},
 };
 const listeners = new Set<() => void>();
 
@@ -141,7 +148,8 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') connect();
 });
 
-type ServerMessage = ControllerEvent | ({ type: 'snapshot' } & Snapshot) | { type: 'pong' };
+type ServerMessage =
+  ControllerEvent | StreamerEvent | ({ type: 'snapshot' } & Snapshot) | { type: 'pong' };
 
 function applySnapshot(snap: Snapshot): void {
   update((s) => ({
@@ -152,6 +160,8 @@ function applySnapshot(snap: Snapshot): void {
     mirrors: snap.mirrors,
     scenes: snap.scenes ?? [],
     config: snap.config,
+    streamers: snap.streamers,
+    nowPlaying: Object.fromEntries(snap.streamers.nowPlaying.map((n) => [n.source, n])),
   }));
 }
 
@@ -267,6 +277,17 @@ function handle(msg: ServerMessage): void {
       );
     case 'pong':
       return;
+    case 'streamers.updated':
+      return update((s) => ({ ...s, streamers: { ...s.streamers, links: msg.streamers } }));
+    case 'streamers.status':
+      return update((s) => ({ ...s, streamers: { ...s.streamers, status: msg.status } }));
+    case 'nowPlaying.changed':
+      return update((s) => {
+        const nowPlaying = { ...s.nowPlaying };
+        if (msg.nowPlaying) nowPlaying[msg.source] = msg.nowPlaying;
+        else delete nowPlaying[msg.source];
+        return { ...s, nowPlaying };
+      });
   }
 }
 

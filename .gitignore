@@ -8,4 +8,5 @@ coverage/
 
 # Hardware probe output (may contain serial numbers / host details)
 oz-probe-report-*
+stream-probe-report-*
 /hardware-reports/

@@ -30,6 +30,51 @@ export interface SourceView {
   color: TileColor | null;
 }
 
+export type PlayState = 'playing' | 'paused' | 'buffering' | 'idle';
+
+/** What the streamer linked to a source is playing. */
+export interface NowPlayingView {
+  source: SourceId;
+  streamerId: string;
+  /** App doing the casting, e.g. "YouTube Music". */
+  app: string | null;
+  state: PlayState;
+  title: string | null;
+  artist: string | null;
+  album: string | null;
+  /** http(s) URL of the cover art (largest available). */
+  artUrl: string | null;
+  /** Seconds into the track at `at`. */
+  position: number | null;
+  duration: number | null;
+  /** Epoch ms observed. */
+  at: number;
+  /** Speaker group the device is playing in, if any (details then come from the group). */
+  group: string | null;
+}
+
+export type StreamerState = 'searching' | 'connecting' | 'connected' | 'offline';
+
+/** Live connection status of a linked streamer. */
+export interface StreamerStatusView {
+  id: string;
+  state: StreamerState;
+  /** Current network address, once found. */
+  address: string | null;
+  error: string | null;
+}
+
+/** A streamer found on the network (Settings → Streamers → Find). */
+export interface DiscoveredStreamer {
+  type: 'cast';
+  deviceId: string;
+  name: string;
+  model: string | null;
+  address: string | null;
+  /** Speaker groups can't be linked; their members are followed automatically. */
+  isGroup: boolean;
+}
+
 export interface QueueStats {
   depth: number;
   completed: number;

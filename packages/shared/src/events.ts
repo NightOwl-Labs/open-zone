@@ -1,6 +1,6 @@
-import type { Config, MirrorGroup, Scene, TileColor } from './config.ts';
+import type { Config, MirrorGroup, Scene, StreamerLink, TileColor } from './config.ts';
 import type { ZoneId, ZonePatch, ZoneState } from './model.ts';
-import type { QuietView, SourceView } from './views.ts';
+import type { NowPlayingView, QuietView, SourceView, StreamerStatusView } from './views.ts';
 
 /** What caused a state change. */
 export type ChangeOrigin =
@@ -55,6 +55,8 @@ export type ControllerEvent =
       applied: ZoneId[];
     }
   | { type: 'connection.changed'; status: ConnectionStatus; error?: string }
+  /** Streamer links were added, changed or removed (config). */
+  | { type: 'streamers.updated'; streamers: StreamerLink[] }
   | { type: 'command.failed'; zone?: ZoneId; patch?: ZonePatch; error: string };
 
 /** Outcome of a scene activation or all-off. */
@@ -66,3 +68,8 @@ export interface ActivationResult {
 }
 
 export type ControllerEventType = ControllerEvent['type'];
+
+/** Events from the streamer integration (not the amp controller). */
+export type StreamerEvent =
+  | { type: 'nowPlaying.changed'; source: number; nowPlaying: NowPlayingView | null }
+  | { type: 'streamers.status'; status: StreamerStatusView[] };

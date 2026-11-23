@@ -6,6 +6,7 @@ import {
   AppearanceConfigSchema,
   PollingConfigSchema,
   QueueConfigSchema,
+  StreamerLinkSchema,
   isValidZone,
   settingsOf,
   diffSettings,
@@ -37,6 +38,7 @@ import {
   type QuietView,
   type AppearanceConfig,
   type TileColor,
+  type StreamerLink,
 } from '@open-zone/shared';
 import { CommandQueue, QueueClearedError, type RunOptions } from './command-queue.ts';
 import type { ConfigStore } from './config-store.ts';
@@ -503,6 +505,68 @@ export class Controller {
     const config = this.getConfig();
     this.emit({ type: 'config.updated', config });
     return config;
+  }
+
+  // ───────────────────────────── streamers ─────────────────────────────
+
+  listStreamers(): StreamerLink[] {
+    return structuredClone(this.config.streamers);
+  }
+
+  /** Link a network streamer to an amp source (one streamer per source, each device once). */
+  async linkStreamer(input: {
+    type: 'cast';
+    deviceId: string;
+    name: string;
+    source: SourceId;
+  }): Promise<StreamerLink> {
+    const link = StreamerLinkSchema.parse({
+      id: this.newId(),
+      type: input.type,
+      deviceId: normalizeDeviceId(input.deviceId),
+      name: input.name,
+      source: input.source,
+    });
+    this.validateStreamer(link);
+    await this.saveStreamers([...this.config.streamers, link]);
+    return structuredClone(link);
+  }
+
+  async updateStreamer(
+    id: string,
+    input: { source?: SourceId; name?: string },
+  ): Promise<StreamerLink> {
+    const current = this.config.streamers.find((l) => l.id === id);
+    if (!current) throw new NotFoundError(`streamer ${id}`);
+    const next = StreamerLinkSchema.parse({ ...current, ...stripUndefined(input) });
+    this.validateStreamer(next);
+    await this.saveStreamers(this.config.streamers.map((l) => (l.id === id ? next : l)));
+    return structuredClone(next);
+  }
+
+  async unlinkStreamer(id: string): Promise<void> {
+    if (!this.config.streamers.some((l) => l.id === id)) throw new NotFoundError(`streamer ${id}`);
+    await this.saveStreamers(this.config.streamers.filter((l) => l.id !== id));
+  }
+
+  private validateStreamer(link: StreamerLink): void {
+    const issues: string[] = [];
+    if (link.source > this.model.sourceCount) issues.push(`source ${link.source} does not exist`);
+    for (const other of this.config.streamers) {
+      if (other.id === link.id) continue;
+      if (other.source === link.source) {
+        issues.push(`source ${link.source} is already linked to ${other.name}`);
+      }
+      if (other.deviceId === link.deviceId) {
+        issues.push(`${other.name} is already linked to source ${other.source}`);
+      }
+    }
+    if (issues.length) throw new PatchValidationError(issues);
+  }
+
+  private async saveStreamers(streamers: StreamerLink[]): Promise<void> {
+    await this.saveConfig({ ...this.config, streamers });
+    this.emit({ type: 'streamers.updated', streamers: this.listStreamers() });
   }
 
   // ───────────────────────────── mute all / lower all ─────────────────────────────
@@ -1181,6 +1245,11 @@ function toFollower(
     volumeOffset: c.volumeOffset ?? previous?.volumeOffset ?? 0,
     ...(sub && { sub: true }),
   };
+}
+
+/** Cast ids appear both with dashes (multizone) and without (mDNS TXT). */
+export function normalizeDeviceId(id: string): string {
+  return id.replace(/-/g, '').toLowerCase();
 }
 
 function isFollowing(role: ReturnType<Controller['roleOf']>): boolean {

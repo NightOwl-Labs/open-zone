@@ -10,6 +10,7 @@ import {
   NotConnectedError,
   NotFoundError,
 } from '@open-zone/core';
+import type { StreamerManager } from '@open-zone/streamers';
 import { listSerialPorts, type MonopriceEmulator } from '@open-zone/drivers';
 import {
   MAX_VOLUME_OFFSET,
@@ -20,10 +21,13 @@ import {
   QueueConfigSchema,
   validatePatch,
   type ControllerEvent,
+  type StreamerEvent,
 } from '@open-zone/shared';
 
 export interface AppOptions {
   controller: Controller;
+  /** Network streamer integration (now playing). Optional: tests and --no-streamers omit it. */
+  streamers?: StreamerManager;
   /** Present in --simulate mode; enables the simulated-keypad endpoint. */
   emulator?: MonopriceEmulator;
   /** Directory with the built UI (packages/ui/dist). */
@@ -71,6 +75,17 @@ const configPatch = z.object({
   polling: PollingConfigSchema.partial().optional(),
   queue: QueueConfigSchema.partial().optional(),
 });
+const streamerLink = z
+  .object({
+    type: z.literal('cast'),
+    deviceId: z.string().min(1).max(64),
+    name: z.string().max(40),
+    source: z.number().int(),
+  })
+  .strict();
+const streamerUpdate = z
+  .object({ source: z.number().int().optional(), name: z.string().max(40).optional() })
+  .strict();
 const lowerAllBody = z.object({ steps: z.number().int().min(1).max(38).default(10) }).strict();
 const sceneZone = z.object({ zone: z.number().int(), volume: z.number().int() });
 const sceneCreate = z.object({
@@ -87,10 +102,24 @@ const keypadBody = z.object({
 });
 
 export type ServerMessage =
-  ControllerEvent | ({ type: 'snapshot' } & ReturnType<typeof snapshot>) | { type: 'pong' };
+  | ControllerEvent
+  | StreamerEvent
+  | ({ type: 'snapshot' } & ReturnType<typeof snapshot>)
+  | { type: 'pong' };
 
-function snapshot(controller: Controller, simulator: boolean) {
+function streamersView(controller: Controller, streamers: StreamerManager | undefined) {
   return {
+    links: controller.listStreamers(),
+    status: streamers?.status() ?? [],
+    nowPlaying: streamers?.nowPlaying() ?? [],
+    /** False when the server runs without the streamer integration. */
+    enabled: !!streamers,
+  };
+}
+
+function snapshot(controller: Controller, simulator: boolean, streamers?: StreamerManager) {
+  return {
+    streamers: streamersView(controller, streamers),
     system: { ...controller.getSystem(), simulator },
     zones: controller.getZones(),
     sources: controller.getSources(),
@@ -101,7 +130,7 @@ function snapshot(controller: Controller, simulator: boolean) {
 }
 
 export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
-  const { controller, emulator } = options;
+  const { controller, emulator, streamers } = options;
   const simulator = emulator !== undefined;
   const app = Fastify({ logger: false });
   await app.register(fastifyWebsocket);
@@ -141,7 +170,21 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   await app.register(
     async (api) => {
       api.get('/system', async () => ({ ...controller.getSystem(), simulator }));
-      api.get('/snapshot', async () => snapshot(controller, simulator));
+      api.get('/snapshot', async () => snapshot(controller, simulator, streamers));
+
+      api.get('/streamers', async () => streamersView(controller, streamers));
+      // Looks on the network for ~3 s; used by Settings → Streamers → Find.
+      api.get('/streamers/discover', async () => (streamers ? streamers.findDevices() : []));
+      api.post('/streamers', async (req, reply) =>
+        reply.status(201).send(await controller.linkStreamer(streamerLink.parse(req.body))),
+      );
+      api.patch('/streamers/:id', async (req) =>
+        controller.updateStreamer(idParam.parse(req.params).id, streamerUpdate.parse(req.body)),
+      );
+      api.delete('/streamers/:id', async (req, reply) => {
+        await controller.unlinkStreamer(idParam.parse(req.params).id);
+        return reply.status(204).send();
+      });
 
       api.get('/zones', async () => controller.getZones());
       api.get('/zones/:id', async (req) => controller.getZone(zoneParam.parse(req.params).id));
@@ -258,8 +301,9 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
         const send = (msg: ServerMessage) => {
           if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(msg));
         };
-        send({ type: 'snapshot', ...snapshot(controller, simulator) });
+        send({ type: 'snapshot', ...snapshot(controller, simulator, streamers) });
         const unsubscribe = controller.bus.subscribe(send);
+        streamers?.on('event', send);
         const heartbeat = setInterval(() => {
           if (!alive) return socket.terminate();
           alive = false;
@@ -273,6 +317,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
         socket.on('close', () => {
           clearInterval(heartbeat);
           unsubscribe();
+          streamers?.off('event', send);
           release();
         });
       });

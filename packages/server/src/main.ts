@@ -15,6 +15,7 @@ import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { Controller, type Logger } from '@open-zone/core';
 import { createDevice } from '@open-zone/drivers';
+import { StreamerManager } from '@open-zone/streamers';
 import { buildApp } from './app.ts';
 import { JsonFileConfigStore } from './config-file.ts';
 
@@ -26,6 +27,8 @@ const { values } = parseArgs({
     port: { type: 'string' },
     host: { type: 'string' },
     data: { type: 'string' },
+    /** Don't look for network streamers (now playing). */
+    'no-streamers': { type: 'boolean', default: false },
   },
 });
 
@@ -68,8 +71,20 @@ controller.bus.on('connection.changed', (e) =>
 );
 
 await controller.start();
+
+// Network streamers (now playing): read-only links, configured in Settings → Streamers.
+const streamers =
+  values['no-streamers'] || process.env.OZ_STREAMERS === '0'
+    ? undefined
+    : new StreamerManager({ log: { info: logger.info, warn: logger.warn } });
+if (streamers) {
+  streamers.setLinks(controller.listStreamers());
+  controller.bus.on('streamers.updated', (e) => streamers.setLinks(e.streamers));
+}
+
 const app = await buildApp({
   controller,
+  ...(streamers && { streamers }),
   ...(emulator && { emulator }),
   uiDir: join(repoRoot, 'packages/ui/dist'),
 });
@@ -94,6 +109,7 @@ const shutdown = async (signal: string) => {
   stopping = true;
   logger.info(`${signal}: shutting down`);
   await app.close();
+  streamers?.stop();
   await controller.stop();
   process.exit(0);
 };
