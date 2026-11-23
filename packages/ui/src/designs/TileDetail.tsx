@@ -1,3 +1,4 @@
+import type { ZoneView } from '@open-zone/shared';
 import { Icon, Sheet, Slider } from '../components.tsx';
 import { roleOf, sourceLabel, zoneLabel } from '../format.ts';
 import { useApp } from '../store.ts';
@@ -13,7 +14,10 @@ import {
   type ZoneDetailProps,
 } from '../zoneParts.tsx';
 import { SourceChips } from './SourceChips.tsx';
-import { sourceHue, sourceIcon } from './visuals.ts';
+import { api } from '../api.ts';
+import { ColorPicker } from '../ColorPicker.tsx';
+import { run } from '../store.ts';
+import { ownZoneColor, sourceColor, sourceIcon, useZoneColor, zoneColorStyle } from './visuals.ts';
 import { VolumeRing } from './VolumeRing.tsx';
 
 const MAX = 38;
@@ -24,10 +28,15 @@ const MAX = 38;
  */
 export function TileDetail({ zone, onClose }: ZoneDetailProps) {
   const z = useApp((s) => s.zones).find((x) => x.zone === zone);
+  return z ? <TileSheet z={z} onClose={onClose} /> : null;
+}
+
+function TileSheet({ z, onClose }: { z: ZoneView; onClose: () => void }) {
+  const zone = z.zone;
   const sources = useApp((s) => s.sources);
   const mirrors = useApp((s) => s.mirrors);
   const zones = useApp((s) => s.zones);
-  if (!z) return null;
+  const color = useZoneColor(z);
   const role = roleOf(zone, mirrors);
   const following = isFollowing(role);
   const s = z.state;
@@ -39,7 +48,7 @@ export function TileDetail({ zone, onClose }: ZoneDetailProps) {
   const hero = (
     <div
       className={`td-hero${on ? ' on' : ''}${following ? ' following' : ''}${s?.mute ? ' muted' : ''}`}
-      style={{ '--hue': sourceHue(s?.source) } as React.CSSProperties}
+      style={zoneColorStyle(color)}
     >
       {s && (on || following) && (
         <VolumeRing value={s.volume} muted={s.mute} className="t-ring td-ring" />
@@ -86,7 +95,7 @@ export function TileDetail({ zone, onClose }: ZoneDetailProps) {
       title={zoneLabel(z)}
       onClose={onClose}
       className={`sheet-tiles${on && !following ? ' tinted' : ''}`}
-      style={{ '--hue': sourceHue(s?.source) } as React.CSSProperties}
+      style={zoneColorStyle(color)}
       hero={hero}
     >
       {role?.kind === 'primary' || following ? <MirrorNote z={z} /> : null}
@@ -141,8 +150,45 @@ export function TileDetail({ zone, onClose }: ZoneDetailProps) {
       {s && !on && !following && (
         <p className="muted-text td-off">Turn the zone on to choose a source and adjust volume.</p>
       )}
+      <TileColorField z={z} />
       <ZoneNameField z={z} />
       <ZoneFacts z={z} />
     </Sheet>
+  );
+}
+
+/** Change this tile's color: the zone's own color, or (colored by source) its source's color. */
+function TileColorField({ z }: { z: ZoneView }) {
+  const mode = useApp((s) => s.config?.appearance.tileColors ?? 'source');
+  const sources = useApp((s) => s.sources);
+  if (mode === 'zone') {
+    return (
+      <div className="field">
+        <span>Tile color</span>
+        <ColorPicker
+          label={zoneLabel(z)}
+          value={ownZoneColor(z)}
+          isDefault={!z.color}
+          onChange={(color) => void run(() => api.updateZone(z.zone, { color }))}
+        />
+      </div>
+    );
+  }
+  const src = z.state?.power ? sources.find((x) => x.source === z.state?.source) : undefined;
+  if (!src) return null;
+  return (
+    <div className="field">
+      <span>Source color</span>
+      <ColorPicker
+        label={sourceLabel(sources, src.source)}
+        value={sourceColor(sources, src.source)}
+        isDefault={!src.color}
+        onChange={(color) => void run(() => api.updateSource(src.source, { color }))}
+      />
+      <span className="muted-text small">
+        Tiles are colored by source, so this changes every zone playing it. Switch to coloring by
+        zone in Settings → Colors.
+      </span>
+    </div>
   );
 }

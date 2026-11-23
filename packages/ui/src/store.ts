@@ -171,7 +171,12 @@ function handle(msg: ServerMessage): void {
     case 'zone.changed':
       return patchZone(msg.zone, (z) => ({ ...z, state: msg.state, updatedAt: Date.now() }));
     case 'zone.updated':
-      return patchZone(msg.zone, (z) => ({ ...z, name: msg.name, enabled: msg.enabled }));
+      return patchZone(msg.zone, (z) => ({
+        ...z,
+        name: msg.name,
+        enabled: msg.enabled,
+        color: msg.color,
+      }));
     case 'source.updated':
       return update((s) => ({
         ...s,

@@ -1,5 +1,7 @@
-import type { SourceView } from '@open-zone/shared';
+import type { SourceView, TileColor, ZoneView } from '@open-zone/shared';
+import { useApp } from '../store.ts';
 import type { IconName } from '../components.tsx';
+import { PALETTE, defaultSourceColor, defaultZoneColor, shadeFor } from './palette.ts';
 
 /** Guess a source icon from its name. Purely presentational. */
 const RULES: Array<[RegExp, IconName]> = [
@@ -21,8 +23,33 @@ export function sourceIcon(sources: SourceView[], id: number | undefined): IconN
   return RULES.find(([re]) => re.test(name))?.[1] ?? 'input';
 }
 
-/** A stable hue per source number, used to tint tiles and chips. */
-const HUES = [212, 28, 152, 330, 268, 188];
-export function sourceHue(id: number | undefined): number {
-  return id ? (HUES[(id - 1) % HUES.length] ?? 212) : 212;
+/** The color chosen for a source, or its default. */
+export function sourceColor(sources: SourceView[], id: number | undefined): TileColor {
+  if (!id) return 'blue';
+  return sources.find((s) => s.source === id)?.color ?? defaultSourceColor(id);
+}
+
+/** The color chosen for a zone, or its default (used when tiles are colored by zone). */
+export function ownZoneColor(z: Pick<ZoneView, 'zone' | 'color'>): TileColor {
+  return z.color ?? defaultZoneColor(z.zone);
+}
+
+export function hueOf(color: TileColor): number {
+  return PALETTE[color].hue;
+}
+
+/**
+ * A zone's color under the current setting: its source's color, or its own.
+ * Returns the hue (for accents in every design) and the volume shade (tiles).
+ */
+export function useZoneColor(z: ZoneView): { color: TileColor; hue: number; shade: string } {
+  const mode = useApp((s) => s.config?.appearance.tileColors ?? 'source');
+  const sources = useApp((s) => s.sources);
+  const color = mode === 'zone' ? ownZoneColor(z) : sourceColor(sources, z.state?.source);
+  return { color, hue: hueOf(color), shade: shadeFor(color, z.state?.volume ?? 0) };
+}
+
+/** CSS variables for a zone's tile or row. */
+export function zoneColorStyle(c: { hue: number; shade: string }): React.CSSProperties {
+  return { '--hue': c.hue, '--tile': c.shade } as React.CSSProperties;
 }

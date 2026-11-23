@@ -1046,3 +1046,124 @@ input[type='range']::-moz-range-thumb {
   padding: 6px 0 2px 36px;
   font-size: 14px;
 }
+
+/* ───── colors: picker and shade ramp ───── */
+
+.color-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.color-picker {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.color-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 6px 10px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  text-align: left;
+}
+
+.color-row > .icon {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--text-2);
+  transition: transform 0.2s;
+}
+
+.color-picker.open .color-row > .icon {
+  transform: rotate(90deg);
+}
+
+.color-dot {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+}
+
+.color-row-text {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+}
+
+.color-row-text b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shade-ramp {
+  flex: none;
+  display: inline-flex;
+  overflow: hidden;
+  border-radius: 6px;
+}
+
+.shade-ramp > span {
+  width: 9px;
+  height: 18px;
+}
+
+.shade-ramp.large {
+  flex: 1;
+}
+
+.shade-ramp.large > span {
+  flex: 1;
+  height: 22px;
+}
+
+.color-panel {
+  display: grid;
+  gap: 12px;
+  padding: 4px 10px 12px;
+}
+
+.color-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.color-swatch {
+  aspect-ratio: 1.6;
+  min-height: 36px;
+  border: 2px solid transparent;
+  border-radius: 10px;
+}
+
+.color-swatch.active {
+  border-color: var(--text);
+  box-shadow: inset 0 0 0 2px var(--surface);
+}
+
+.color-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.color-panel .btn.small {
+  justify-self: start;
+}
+
+@media (max-width: 360px) {
+  .color-row .shade-ramp {
+    display: none;
+  }
+}

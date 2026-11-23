@@ -4,7 +4,7 @@ import { useApp } from '../store.ts';
 import type { ZoneItemProps } from '../ZonesPage.tsx';
 import { FollowingLine, RoleBadge, VolumeRow, change, isFollowing } from '../zoneParts.tsx';
 import { SourceChips } from './SourceChips.tsx';
-import { sourceHue, sourceIcon } from './visuals.ts';
+import { sourceIcon, useZoneColor, zoneColorStyle } from './visuals.ts';
 
 /** Studio: a calm list. Each zone leads with a source-colored icon; sources are chips. */
 export function StudioRow({ z, onOpen }: ZoneItemProps) {
@@ -15,12 +15,13 @@ export function StudioRow({ z, onOpen }: ZoneItemProps) {
   const following = isFollowing(role);
   const on = z.state?.power ?? false;
   const source = z.state?.source;
+  const color = useZoneColor(z);
   return (
     <article
       className={`s-row${on ? ' on' : ''}${following ? ' following' : ''}${
         z.state?.mute ? ' muted' : ''
       }`}
-      style={{ '--hue': sourceHue(source) } as React.CSSProperties}
+      style={zoneColorStyle(color)}
     >
       <div className="s-head">
         <button type="button" className="s-avatar" onClick={onOpen} tabIndex={-1} aria-hidden>

@@ -1,4 +1,4 @@
-import type { Config, MirrorGroup, Scene } from './config.ts';
+import type { Config, MirrorGroup, Scene, TileColor } from './config.ts';
 import type { ZoneId, ZonePatch, ZoneState } from './model.ts';
 import type { QuietView, SourceView } from './views.ts';
 
@@ -24,7 +24,13 @@ export type ControllerEvent =
       state: ZoneState;
       origin: ChangeOrigin;
     }
-  | { type: 'zone.updated'; zone: ZoneId; name: string | null; enabled: boolean }
+  | {
+      type: 'zone.updated';
+      zone: ZoneId;
+      name: string | null;
+      enabled: boolean;
+      color: TileColor | null;
+    }
   | { type: 'source.updated'; source: SourceView }
   | { type: 'mirror.updated'; group: MirrorGroup }
   | { type: 'mirror.deleted'; groupId: string }

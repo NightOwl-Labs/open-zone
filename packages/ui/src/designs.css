@@ -588,8 +588,12 @@
   border-color: transparent;
   color: #fff;
   background:
-    radial-gradient(120% 90% at 100% 0%, hsl(calc(var(--hue) + 25) 85% 62% / 0.9), transparent 60%),
-    linear-gradient(150deg, hsl(var(--hue) 70% 48%), hsl(calc(var(--hue) + 20) 65% 34%));
+    radial-gradient(
+      120% 90% at 100% 0%,
+      color-mix(in srgb, var(--tile) 72%, white),
+      transparent 60%
+    ),
+    linear-gradient(150deg, var(--tile), color-mix(in srgb, var(--tile) 76%, black));
 }
 
 .t-tile.on.muted {
@@ -855,8 +859,12 @@
 .td-hero.on {
   color: #fff;
   background:
-    radial-gradient(120% 90% at 100% 0%, hsl(calc(var(--hue) + 25) 85% 62% / 0.9), transparent 60%),
-    linear-gradient(150deg, hsl(var(--hue) 70% 48%), hsl(calc(var(--hue) + 20) 65% 34%));
+    radial-gradient(
+      120% 90% at 100% 0%,
+      color-mix(in srgb, var(--tile) 72%, white),
+      transparent 60%
+    ),
+    linear-gradient(150deg, var(--tile), color-mix(in srgb, var(--tile) 76%, black));
 }
 
 .td-hero.on.muted {

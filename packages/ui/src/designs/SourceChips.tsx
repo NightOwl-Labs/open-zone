@@ -2,7 +2,7 @@ import type { SourceView, ZoneView } from '@open-zone/shared';
 import { Icon } from '../components.tsx';
 import { sourceLabel, zoneLabel } from '../format.ts';
 import { change } from '../zoneParts.tsx';
-import { sourceHue, sourceIcon } from './visuals.ts';
+import { hueOf, sourceColor, sourceIcon } from './visuals.ts';
 
 /**
  * Source picker as tappable chips. Same rules as the classic select: enabled
@@ -22,7 +22,7 @@ export function SourceChips({ z, sources }: { z: ZoneView; sources: SourceView[]
           aria-checked={s.source === current}
           disabled={!s.enabled}
           className={`src-chip${s.source === current ? ' active' : ''}`}
-          style={{ '--hue': sourceHue(s.source) } as React.CSSProperties}
+          style={{ '--hue': hueOf(sourceColor(sources, s.source)) } as React.CSSProperties}
           onClick={() => s.source !== current && change(z, { source: s.source })}
         >
           <Icon name={sourceIcon(sources, s.source)} />

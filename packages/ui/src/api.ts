@@ -4,6 +4,8 @@ import type {
   Scene,
   MirrorGroup,
   PollingConfig,
+  AppearanceConfig,
+  TileColor,
   QuietView,
   SourceView,
   SystemView,
@@ -63,10 +65,14 @@ export const api = {
   snapshot: () => request<Snapshot>('GET', '/snapshot'),
   zone: (id: number) => request<ZoneView>('GET', `/zones/${id}`),
   setZone: (id: number, patch: ZonePatch) => request<ZoneView>('PATCH', `/zones/${id}`, patch),
-  updateZone: (id: number, input: { name?: string | null; enabled?: boolean }) =>
-    request<ZoneView>('PATCH', `/zones/${id}/config`, input),
-  updateSource: (id: number, input: { name?: string | null; enabled?: boolean }) =>
-    request<SourceView>('PATCH', `/sources/${id}`, input),
+  updateZone: (
+    id: number,
+    input: { name?: string | null; enabled?: boolean; color?: TileColor | null },
+  ) => request<ZoneView>('PATCH', `/zones/${id}/config`, input),
+  updateSource: (
+    id: number,
+    input: { name?: string | null; enabled?: boolean; color?: TileColor | null },
+  ) => request<SourceView>('PATCH', `/sources/${id}`, input),
   createMirror: (input: MirrorInput) => request<MirrorGroup>('POST', '/mirrors', input),
   updateMirror: (id: string, input: MirrorInput) =>
     request<MirrorGroup>('PATCH', `/mirrors/${id}`, input),
@@ -84,6 +90,8 @@ export const api = {
   deleteScene: (id: string) => request<void>('DELETE', `/scenes/${id}`),
   activateScene: (id: string) => request<ActivationResult>('POST', `/scenes/${id}/activate`),
   updateHome: (name: string | null) => request<Config>('PATCH', '/config', { home: { name } }),
+  updateAppearance: (appearance: Partial<AppearanceConfig>) =>
+    request<Config>('PATCH', '/config', { appearance }),
   updatePolling: (polling: Partial<PollingConfig>) =>
     request<Config>('PATCH', '/config', { polling }),
   simulateKeypad: (zone: number, body: { patch?: ZonePatch; keypad?: boolean }) =>
